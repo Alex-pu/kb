@@ -1,0 +1,840 @@
+{
+	"info": {
+		"_postman_id": "e7141af7-150e-45a7-9d70-b7d32372353c",
+		"name": "eTims REST API",
+		"description": "# 🚀 Get started here\n\nThis template guides you through API operations ti eTims\n\n```\n{\n    \"name\": \"Add your name in the body\"\n}\n\n ```",
+		"schema": "https://schema.getpostman.com/json/collection/v2.0.0/collection.json",
+		"_exporter_id": "2331001"
+	},
+	"item": [
+		{
+			"name": "Standard Codes",
+			"item": [
+				{
+					"name": "Query Countries",
+					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": {
+								"password": "admin",
+								"username": "admin"
+							}
+						},
+						"method": "GET",
+						"header": [],
+						"url": "{{DEV_URL}}/countries"
+					},
+					"response": []
+				},
+				{
+					"name": "Query Currencies",
+					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": {
+								"password": "admin",
+								"username": "admin"
+							}
+						},
+						"method": "GET",
+						"header": [],
+						"url": "{{DEV_URL}}/currencies"
+					},
+					"response": []
+				},
+				{
+					"name": "Query Unit Codes",
+					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": {
+								"password": "admin",
+								"username": "admin"
+							}
+						},
+						"method": "GET",
+						"header": [],
+						"url": "{{DEV_URL}}/qtyunitcodes"
+					},
+					"response": []
+				},
+				{
+					"name": "Query Pakacge Codes",
+					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": {
+								"password": "admin",
+								"username": "admin"
+							}
+						},
+						"method": "GET",
+						"header": [],
+						"url": "{{DEV_URL}}/pkgunitcodes"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Other Basic Queries",
+			"item": [
+				{
+					"name": "Get notices",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});"
+								],
+								"type": "text/javascript",
+								"packages": {}
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": {
+								"password": "admin",
+								"username": "admin"
+							}
+						},
+						"method": "GET",
+						"header": [],
+						"url": "{{DEV_URL}}/notices",
+						"description": "This is a GET request and it is used to \"get\" data from an endpoint. There is no request body for a GET request, but you can use query parameters to help specify the resource you want data on (e.g., in this request, we have `id=1`).\n\nA successful GET response will have a `200 OK` status, and should include some kind of response body - for example, HTML web content or JSON data."
+					},
+					"response": []
+				},
+				{
+					"name": "Item Classification Codes",
+					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": {
+								"password": "admin",
+								"username": "admin"
+							}
+						},
+						"method": "GET",
+						"header": [],
+						"url": "{{DEV_URL}}/itemcodes"
+					},
+					"response": []
+				},
+				{
+					"name": "Branches",
+					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": {
+								"password": "admin",
+								"username": "admin"
+							}
+						},
+						"method": "GET",
+						"header": [],
+						"url": "{{DEV_URL}}/branches"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Items",
+			"item": [
+				{
+					"name": "Get Items",
+					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": {
+								"password": "admin",
+								"username": "admin"
+							}
+						},
+						"method": "GET",
+						"header": [],
+						"url": "{{DEV_URL}}/items"
+					},
+					"response": []
+				},
+				{
+					"name": "Store Item",
+					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": {
+								"password": "admin",
+								"username": "admin"
+							}
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text",
+								"uuid": "46e91f24-e74a-419e-a65a-8f8dfa62277a"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text",
+								"uuid": "298e642e-e41e-4275-9ca1-5fdfc71f2c65"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Item B\",\n  \"orgCountryCode\": \"KE\",\n  \"unitPrice\": 100,\n  \"itemTypeCode\": \"1\",\n  \"taxCode\": \"A\",\n  \"qtyUnitCode\": \"U\",\n  \"pkgUnitCode\": \"CT\",\n  \"itemClassCode\": \"99000000\",\n  \"initialStock\": 0\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{DEV_URL}}/items"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Item",
+					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": {
+								"password": "admin",
+								"username": "admin"
+							}
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text",
+								"uuid": "c47643e0-f38d-4077-8b33-21980e001c78"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text",
+								"uuid": "af00fce7-c02d-463d-b127-44d32933e3a8"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Item C\",\n  \"orgCountryCode\": \"KE\",\n  \"unitPrice\": 100,\n  \"itemTypeCode\": \"1\",\n  \"taxCode\": \"B\",\n  \"qtyUnitCode\": \"U\",\n  \"pkgUnitCode\": \"CT\",\n  \"itemClassCode\": \"99000000\",\n  \"stock\": 0\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{DEV_URL}}/items/KE1UCT0000014"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Item",
+					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": {
+								"password": "admin",
+								"username": "admin"
+							}
+						},
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"uuid": "b55e19b3-0bc3-48f0-8ca3-21221fc71a24"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"uuid": "0c170cfa-cd99-4a55-97e8-d047c0c87175"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{DEV_URL}}/items/KE1UCT0000017"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Item by Code",
+					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": {
+								"password": "admin",
+								"username": "admin"
+							}
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text",
+								"uuid": "1fdd7f21-e78e-42e2-8d4b-1624a6d72ee6"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text",
+								"uuid": "5d3b47cd-3777-4cf9-8305-b86e9bdeb7c2"
+							}
+						],
+						"url": "{{DEV_URL}}/items/KE1UCT0000014"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Invoices",
+			"item": [
+				{
+					"name": "Generate Invoice",
+					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": {
+								"password": "admin",
+								"username": "admin"
+							}
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text",
+								"uuid": "1d4b2939-d964-4fd5-9de1-fbbecf48200b"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text",
+								"uuid": "d470947e-f8d2-425d-9836-9b42a0b6435a"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"traderInvoiceNo\": \"123\",\n  \"totalAmount\": 2023.68,\n  \"paymentType\": \"01\",\n  \"salesTypeCode\": \"N\",\n  \"receiptTypeCode\": \"S\",\n  \"salesStatusCode\": \"01\",\n  \"salesDate\": \"20240509050115\",\n  \"currency\": \"KES\",\n  \"exchangeRate\": 1.0,\n  \"salesItems\": [\n    {\n      \"itemCode\": \"KE1UCT0000015\",\n      \"qty\": 1,\n      \"pkg\": 0,\n      \"unitPrice\": 193.84,\n      \"amount\": 193.84,\n      \"discountAmount\": 0\n    }\n  ],\n  \"customerPin\": \"P00000000004s\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{DEV_URL}}/invoices"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Invoices",
+					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": {
+								"password": "admin",
+								"username": "admin"
+							}
+						},
+						"method": "GET",
+						"header": [],
+						"url": "{{DEV_URL}}/invoices"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Invoice By Trader Invoice Number",
+					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": {
+								"password": "admin",
+								"username": "admin"
+							}
+						},
+						"method": "GET",
+						"header": [],
+						"url": "{{DEV_URL}}/invoices/123"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Purchases",
+			"item": [
+				{
+					"name": "Query Purchases From KRA",
+					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": {
+								"password": "admin",
+								"username": "admin"
+							}
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{DEV_URL}}/purchases/queries?last_request_date=20200509050115",
+							"host": [
+								"{{DEV_URL}}"
+							],
+							"path": [
+								"purchases",
+								"queries"
+							],
+							"query": [
+								{
+									"key": "last_request_date",
+									"value": "20200509050115"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Save converted purchases",
+					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": {
+								"password": "admin",
+								"username": "admin"
+							}
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text",
+								"uuid": "40a3c364-bda6-40aa-a690-b05a4047c7b9"
+							},
+							{
+								"key": "Accept-Charset",
+								"value": "application/json",
+								"type": "text",
+								"uuid": "9603442b-65db-4888-9a80-3da125f32028"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"supplierInvoiceNo\": 95,\n  \"supplierInvoiceTin\": \"P051201909L\",\n  \"purchaseItems\": [\n    {\n      \"supplierItemCode\": \"KR2CTU00000013\",\n      \"itemCode\": \"KE1UCT0000015\"\n    }\n  ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{DEV_URL}}/purchases/queries/converted"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Stocks",
+			"item": [
+				{
+					"name": "Get stock transfers of branch",
+					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": {
+								"password": "admin",
+								"username": "admin"
+							}
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{DEV_URL}}/stock/transfer/queries?last_request_date=20200509050115",
+							"host": [
+								"{{DEV_URL}}"
+							],
+							"path": [
+								"stock",
+								"transfer",
+								"queries"
+							],
+							"query": [
+								{
+									"key": "last_request_date",
+									"value": "20200509050115"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Save stock movements",
+					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": {
+								"password": "admin",
+								"username": "admin"
+							}
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text",
+								"uuid": "b6a51e53-e33d-43d1-95cf-f314e6a51004"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text",
+								"uuid": "8d5a7b2e-6ae5-4444-b6ea-e4e112a0d72c"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"totalAmount\": 200,\n  \"totalTaxableAmount\": 200,\n  \"totalTaxAmount\": 0,\n  \"stockItems\": [\n    {\n      \"itemCode\": \"KE1UCT0000015\",\n      \"qty\": 2,\n      \"unitPrice\": 100,\n      \"discountAmount\": 0,\n      \"taxAmount\": 0,\n      \"taxableAmount\": 200,\n      \"amount\": 200\n    }\n  ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{DEV_URL}}/stock/transfer/queries/receive"
+					},
+					"response": []
+				},
+				{
+					"name": "Move Stock",
+					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": {
+								"password": "admin",
+								"username": "admin"
+							}
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text",
+								"uuid": "7c62bf24-2461-40f5-aa96-aaca29f41c5f"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text",
+								"uuid": "e3105892-c533-46a8-922f-f573d13ab61e"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"bhfId\": \"01\",\n  \"stockItems\": [\n    {\n      \"itemCode\": \"KE1UCT0000015\",\n      \"qty\": 2,\n      \"discountAmount\": 0\n    }\n  ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{DEV_URL}}/stock/transfers"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Imports",
+			"item": [
+				{
+					"name": "Query Imports From KRA",
+					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": {
+								"password": "admin",
+								"username": "admin"
+							}
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{DEV_URL}}/imports/queries?last_request_date=20190509050115",
+							"host": [
+								"{{DEV_URL}}"
+							],
+							"path": [
+								"imports",
+								"queries"
+							],
+							"query": [
+								{
+									"key": "last_request_date",
+									"value": "20190509050115"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Save converted imports",
+					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": {
+								"password": "admin",
+								"username": "admin"
+							}
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text",
+								"uuid": "5ba9a0f0-e4cd-4a99-aed6-685dbf47d579"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text",
+								"uuid": "6ae58b35-bf4a-42f7-b645-b266e9f06646"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"taskCode\": \"2239078\",\n  \"declarationNo\": \"C3460-2019-TZDL\",\n  \"hsCode\": \"20055900000\",\n  \"itemCode\": \"KE1UCT0000015\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{DEV_URL}}/imports/queries/converted"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Customers",
+			"item": [
+				{
+					"name": "Get Customers",
+					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": {
+								"password": "admin",
+								"username": "admin"
+							}
+						},
+						"method": "GET",
+						"header": [],
+						"url": "{{DEV_URL}}/customers"
+					},
+					"response": []
+				},
+				{
+					"name": "Store Customer",
+					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": {
+								"password": "admin",
+								"username": "admin"
+							}
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text",
+								"uuid": "a3423fbb-0435-4b19-9476-54066481091d"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text",
+								"uuid": "6a774c93-990c-4c5d-a678-432138c18f5e"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"string\",\n  \"pin\": \"string\",\n  \"phone\": \"string\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{DEV_URL}}/customers"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Customer",
+					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": {
+								"password": "admin",
+								"username": "admin"
+							}
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text",
+								"uuid": "c46dc9af-b0b9-4ef9-b7a3-859ccaf3442e"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text",
+								"uuid": "7ab115a9-d88e-4d48-9869-e0970c217330"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"string\",\n  \"pin\": \"string\",\n  \"phone\": \"string\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{DEV_URL}}/customers/A123456789L"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Customer",
+					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": {
+								"password": "admin",
+								"username": "admin"
+							}
+						},
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text",
+								"uuid": "0b8caf80-d6fd-44c0-af1d-3169e1781c9e"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text",
+								"uuid": "18ebff94-d1fd-4ac5-9950-9a571fb0e15b"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": "{{DEV_URL}}/customers/A123456789L"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Customer by PIN",
+					"request": {
+						"auth": {
+							"type": "basic",
+							"basic": {
+								"password": "admin",
+								"username": "admin"
+							}
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text",
+								"uuid": "3bae9bd6-4c1c-4380-b08b-4c3e95085e47"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json",
+								"type": "text",
+								"uuid": "9113a23e-c411-4bec-8057-5bb1b511bc27"
+							}
+						],
+						"url": "{{DEV_URL}}/customers/A123456789L"
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "id",
+			"value": "1"
+		},
+		{
+			"key": "base_url",
+			"value": "https://postman-rest-api-learner.glitch.me/"
+		}
+	]
+}

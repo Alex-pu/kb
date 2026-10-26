@@ -1,0 +1,236 @@
+"use client";
+
+import React, { useState } from "react";
+import { DashboardShell } from "@/components/layout/DashboardShell";
+import { useTenantStore } from "@/lib/store/tenant-store";
+import type { ProductCategory } from "@/lib/types/database";
+import { Plus, Search, X } from "lucide-react";
+
+export default function CatalogPage() {
+  const { catalog, activeProperty, activeOutlet, addCatalogItem, loadCatalog, hasPermission } = useTenantStore();
+  const canManageCatalog = hasPermission("catalog:manage");
+  const canReadInventory = hasPermission("inventory:read");
+  const canManageInventory = hasPermission("inventory:manage");
+  const [query, setQuery] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [category, setCategory] = useState<ProductCategory>("grocery");
+  const [itemType, setItemType] = useState<"retail" | "supply">("retail");
+  const [name, setName] = useState("");
+  const [unit, setUnit] = useState("each");
+  const [price, setPrice] = useState("");
+  const [kitchenStock, setKitchenStock] = useState("0");
+  const [barStock, setBarStock] = useState("0");
+  const [reorderLevel, setReorderLevel] = useState("0");
+  const [stockTracked, setStockTracked] = useState(true);
+  const [prepStation, setPrepStation] = useState<"kitchen" | "bar">("kitchen");
+  const [message, setMessage] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [mappingItemId, setMappingItemId] = useState<string | null>(null);
+  const [mapping, setMapping] = useState({ etims_item_code: "", etims_tax_code: "", etims_qty_unit_code: "", etims_pkg_unit_code: "", etims_item_class_code: "" });
+
+  const visibleItems = catalog.filter((item) =>
+    `${item.name} ${item.sku} ${item.barcode || ""}`.toLowerCase().includes(query.toLowerCase())
+  );
+
+  function changeItemType(nextType: "retail" | "supply") {
+    setItemType(nextType);
+    if (nextType === "supply") {
+      setStockTracked(true);
+      setPrice("0");
+      setPrepStation("kitchen");
+      setKitchenStock("0");
+      setBarStock("0");
+    } else if (price === "0") {
+      setPrice("");
+    }
+  }
+
+  async function submitItem(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving(true);
+    setMessage(null);
+    try {
+      const result = await addCatalogItem({
+        name,
+        item_type: itemType,
+        unit,
+        price: Number(price),
+        category,
+        initial_stock_kitchen: itemType === "retail" && canManageInventory && stockTracked ? Number(kitchenStock) : 0,
+        initial_stock_bar: itemType === "retail" && canManageInventory && stockTracked ? Number(barStock) : 0,
+        reorder_level: canManageInventory && (itemType === "supply" || stockTracked) ? Number(reorderLevel) : 0,
+        stock_tracked: itemType === "supply" || stockTracked,
+        prep_station: prepStation,
+      });
+      setMessage(result.message);
+      if (!result.success) return;
+      setShowForm(false);
+      setItemType("retail");
+      setName("");
+      setUnit("each");
+      setPrice("");
+      setKitchenStock("0");
+      setBarStock("0");
+      setReorderLevel("0");
+      setStockTracked(true);
+      setPrepStation("kitchen");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveEtimsMapping(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const item = catalog.find((candidate) => candidate.id === mappingItemId);
+    if (!item || !activeOutlet) return;
+    setSaving(true);
+    setMessage(null);
+    try {
+      const response = await fetch("/api/pos/catalog", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ outlet_id: activeOutlet.id, item_id: item.id, ...mapping }),
+      });
+      const result = await response.json();
+      setMessage(result.message || "Could not save the eTIMS mapping.");
+      if (response.ok && result.success) {
+        setMappingItemId(null);
+        await loadCatalog();
+      }
+    } catch {
+      setMessage("Could not reach the server to save the eTIMS mapping.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <DashboardShell>
+      <div className="max-w-6xl mx-auto space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-neutral-200 dark:border-neutral-800 pb-4">
+          <div>
+            <h1 className="text-xl font-bold tracking-tight">Products & Catalog</h1>
+            <p className="text-xs text-neutral-500 font-mono mt-0.5">Property Settings • {activeProperty?.name} • Catalog, warehouse routing and stock</p>
+          </div>
+          {canManageCatalog && (
+            <button onClick={() => setShowForm(true)} className="flex items-center gap-2 px-3 py-1.5 bg-black text-white dark:bg-white dark:text-black text-xs font-semibold rounded">
+              <Plus className="w-3.5 h-3.5" /> Add item
+            </button>
+          )}
+        </div>
+        {message && <div role="status" className="px-3 py-2 text-xs border border-neutral-200 dark:border-neutral-700 rounded">{message}</div>}
+        <div className="flex items-center gap-2 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded p-2">
+          <Search className="w-4 h-4 text-neutral-400" />
+          <input aria-label="Search catalog" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search name, SKU or barcode" className="flex-1 bg-transparent outline-none text-xs font-mono" />
+        </div>
+        <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-neutral-50 dark:bg-neutral-800/60 text-[11px] font-mono uppercase text-neutral-500">
+                <tr>
+                  <th className="p-3">Item</th><th className="p-3">Category</th><th className="p-3">SKU / Barcode</th><th className="p-3">Price</th><th className="p-3">Order destination</th>
+                  {canReadInventory && <><th className="p-3">Kitchen stock</th><th className="p-3">Bar stock</th><th className="p-3">Supplies stock</th></>}
+                  <th className="p-3">Status</th>{canManageCatalog && <th className="p-3">eTIMS</th>}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                {visibleItems.map((item) => (
+                  <tr key={item.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-800/30">
+                    <td className="p-3"><div className="font-semibold">{item.name}</div><div className="text-[10px] font-mono text-neutral-400">{item.item_type === "supply" ? `Non-sale supply • ${item.unit || "each"}` : item.stock_tracked ? `Stock tracked • ${item.unit || "each"}` : "Non-stock"}</div></td>
+                    <td className="p-3 capitalize">{item.category}</td>
+                    <td className="p-3 font-mono text-neutral-500">{item.sku}<br />{item.barcode}</td>
+                    <td className="p-3 font-mono">KSh {item.price.toFixed(2)}</td>
+                    <td className="p-3 capitalize">{item.item_type === "supply" ? "Supplies" : item.prep_station === "bar" ? "Bar" : "Kitchen"}</td>
+                    {canReadInventory && (
+                      <>
+                        <td className="p-3 font-mono">
+                          {item.stock_tracked && item.item_type !== "supply" ? <><span className={(item.stock_by_warehouse?.kitchen ?? 0) <= item.reorder_level ? "text-red-600 font-semibold" : ""}>{item.stock_by_warehouse?.kitchen ?? 0}</span><span className="text-neutral-400"> / reorder {item.reorder_level}</span></> : "—"}
+                        </td>
+                        <td className="p-3 font-mono">
+                          {item.stock_tracked && item.item_type !== "supply" ? <><span className={(item.stock_by_warehouse?.bar ?? 0) <= item.reorder_level ? "text-red-600 font-semibold" : ""}>{item.stock_by_warehouse?.bar ?? 0}</span><span className="text-neutral-400"> / reorder {item.reorder_level}</span></> : "—"}
+                        </td>
+                        <td className="p-3 font-mono">
+                          {item.item_type === "supply" ? <><span className={(item.stock_by_warehouse?.supplies ?? 0) <= item.reorder_level ? "text-red-600 font-semibold" : ""}>{item.stock_by_warehouse?.supplies ?? 0}</span><span className="text-neutral-400"> / reorder {item.reorder_level}</span></> : "—"}
+                        </td>
+                      </>
+                    )}
+                    <td className="p-3"><span className="text-emerald-600 text-[10px] font-mono">{item.is_active ? "ACTIVE" : "INACTIVE"}</span></td>
+                    {canManageCatalog && <td className="p-3">
+                      {item.item_type === "supply" ? "—" : <button type="button" onClick={() => {
+                        setMappingItemId(mappingItemId === item.id ? null : item.id);
+                        setMapping({
+                          etims_item_code: item.etims_item_code ?? "",
+                          etims_tax_code: item.etims_tax_code ?? "",
+                          etims_qty_unit_code: item.etims_qty_unit_code ?? "",
+                          etims_pkg_unit_code: item.etims_pkg_unit_code ?? "",
+                          etims_item_class_code: item.etims_item_class_code ?? "",
+                        });
+                      }} className="text-[10px] font-semibold underline">{item.etims_item_code && item.etims_tax_code ? "Edit mapping" : "Map item"}</button>}
+                    </td>}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {mappingItemId && canManageCatalog && (
+            <form onSubmit={saveEtimsMapping} className="grid gap-3 rounded border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900 sm:grid-cols-2">
+              <div className="sm:col-span-2"><h2 className="text-sm font-semibold">eTIMS product mapping</h2><p className="text-[10px] text-neutral-500">Use the exact codes issued by your eTIMS provider. Unmapped items cannot be fiscalized.</p></div>
+              {([
+                ["etims_item_code", "eTIMS item code"],
+                ["etims_tax_code", "Tax code"],
+                ["etims_qty_unit_code", "Quantity unit code (optional)"],
+                ["etims_pkg_unit_code", "Package unit code (optional)"],
+                ["etims_item_class_code", "Item class code (optional)"],
+              ] as const).map(([key, label]) => <label key={key} className="space-y-1 text-[10px] text-neutral-500">{label}{key === "etims_tax_code" ? <select value={mapping[key]} onChange={(event) => setMapping({ ...mapping, [key]: event.target.value })} className="block w-full rounded border border-neutral-300 bg-neutral-50 px-2 py-2 text-xs text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white"><option value="">Select tax code</option>{["A", "B", "C", "D", "E"].map((code) => <option key={code} value={code}>{code}</option>)}</select> : <input value={mapping[key]} onChange={(event) => setMapping({ ...mapping, [key]: event.target.value })} maxLength={key === "etims_item_code" ? 80 : key === "etims_item_class_code" ? 40 : 20} className="block w-full rounded border border-neutral-300 bg-neutral-50 px-2 py-2 text-xs text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white" />}</label>)}
+              <div className="sm:col-span-2 flex gap-2"><button disabled={saving} className="rounded bg-black px-3 py-2 text-xs font-semibold text-white disabled:opacity-50 dark:bg-white dark:text-black">{saving ? "Saving…" : "Save mapping"}</button><button type="button" onClick={() => setMappingItemId(null)} className="rounded border px-3 py-2 text-xs">Cancel</button></div>
+            </form>
+          )}
+        </div>
+
+        {showForm && canManageCatalog && (
+          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+            <form onSubmit={submitItem} className="w-full max-w-md bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded p-5 space-y-4">
+              <div className="flex justify-between items-center">
+                <h2 className="font-semibold text-sm">Add catalog item</h2>
+                <button type="button" onClick={() => setShowForm(false)} aria-label="Close"><X className="w-4 h-4" /></button>
+              </div>
+              <p className="text-xs text-neutral-500">The catalog is shared across this property. Transfer stock to make a stocked item available at another outlet.</p>
+              <p className="text-xs text-neutral-500">A unique SKU is generated automatically when the item is saved and cannot be changed.</p>
+              <label className="block text-xs space-y-1">Item type<select value={itemType} onChange={(event) => changeItemType(event.target.value as "retail" | "supply")} className="w-full p-2 border rounded bg-neutral-50 dark:bg-neutral-800"><option value="retail">Sale item</option><option value="supply">Non-sale supply</option></select></label>
+              <label className="block text-xs space-y-1">Name<input required value={name} onChange={(event) => setName(event.target.value)} className="w-full p-2 border rounded bg-neutral-50 dark:bg-neutral-800" /></label>
+              <div className="grid grid-cols-2 gap-2">
+                {itemType === "retail"
+                  ? <label className="block text-xs space-y-1">Price<input required min="0" step="0.01" type="number" value={price} onChange={(event) => setPrice(event.target.value)} className="w-full p-2 border rounded bg-neutral-50 dark:bg-neutral-800" /></label>
+                  : <p className="self-end pb-2 text-[10px] text-neutral-500">Not sold through POS</p>}
+                <label className="block text-xs space-y-1">Stock / sale unit<input required maxLength={40} value={unit} onChange={(event) => setUnit(event.target.value)} placeholder="crate, piece, kg" className="w-full p-2 border rounded bg-neutral-50 dark:bg-neutral-800" /></label>
+              </div>
+              {itemType === "retail"
+                ? <label className="block text-xs space-y-1">Order destination<select value={prepStation} onChange={(event) => setPrepStation(event.target.value as "kitchen" | "bar")} className="w-full p-2 border rounded bg-neutral-50 dark:bg-neutral-800"><option value="kitchen">Kitchen</option><option value="bar">Bar</option></select></label>
+                : <p className="text-[10px] text-neutral-500">Supply stock is kept in a separate Supplies balance at each outlet.</p>}
+              <label className="flex items-center gap-2 text-xs">
+                <input type="checkbox" checked={itemType === "supply" || stockTracked} disabled={itemType === "supply"} onChange={(event) => setStockTracked(event.target.checked)} />
+                {itemType === "supply" ? "Track supply quantities" : "Track stock (disable for items sold without quantity limits)"}
+              </label>
+              {itemType === "retail" && stockTracked && canManageInventory && (
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="block text-xs space-y-1">Kitchen opening stock<input required min="0" step="0.001" type="number" value={kitchenStock} onChange={(event) => setKitchenStock(event.target.value)} className="w-full p-2 border rounded bg-neutral-50 dark:bg-neutral-800" /></label>
+                  <label className="block text-xs space-y-1">Bar opening stock<input required min="0" step="0.001" type="number" value={barStock} onChange={(event) => setBarStock(event.target.value)} className="w-full p-2 border rounded bg-neutral-50 dark:bg-neutral-800" /></label>
+                  <label className="block text-xs space-y-1 col-span-2">Reorder level (applies to each warehouse)<input required min="0" step="0.001" type="number" value={reorderLevel} onChange={(event) => setReorderLevel(event.target.value)} className="w-full p-2 border rounded bg-neutral-50 dark:bg-neutral-800" /></label>
+                </div>
+              )}
+              {itemType === "supply" && canManageInventory && <label className="block text-xs space-y-1">Low-stock alert level<input required min="0" step="0.001" type="number" value={reorderLevel} onChange={(event) => setReorderLevel(event.target.value)} className="w-full p-2 border rounded bg-neutral-50 dark:bg-neutral-800" /></label>}
+              {itemType === "supply" && !canManageInventory && <p className="text-[10px] text-neutral-500">Supply starts at zero in Central Store; a stock controller records purchases and issues.</p>}
+              {stockTracked && !canManageInventory && <p className="text-[10px] text-neutral-500">This item starts with zero stock in both warehouses. Opening balances require stock-management permission.</p>}
+              {!stockTracked && <p className="text-[10px] text-neutral-500">This item can be sold without checking or reducing warehouse quantities.</p>}
+              <label className="block text-xs space-y-1">Category<select value={category} onChange={(event) => setCategory(event.target.value as ProductCategory)} className="w-full p-2 border rounded bg-neutral-50 dark:bg-neutral-800"><option value="grocery">Grocery</option><option value="beverage">Beverage</option><option value="food">Food</option><option value="household">Household</option><option value="hardware">Hardware</option></select></label>
+              {message && <p role="alert" className="text-xs text-red-600">{message}</p>}
+              <button type="submit" disabled={saving} className="w-full py-2 bg-black text-white dark:bg-white dark:text-black rounded text-xs font-semibold disabled:opacity-50">{saving ? "Saving…" : "Save item"}</button>
+            </form>
+          </div>
+        )}
+      </div>
+    </DashboardShell>
+  );
+}

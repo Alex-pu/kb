@@ -1,0 +1,2339 @@
+swagger: "2.0"
+info:
+  version: "1.0.0"
+  title: VFD REST API
+  description: "SCU MODULE -VIRTUAL FD REST SERVICES"
+
+host: "127.0.0.1:8888"
+basePath: /api/v1/
+#
+schemes:
+  - http
+  - https
+
+securityDefinitions:
+  auth:
+    type: basic
+
+paths:
+  /users/auth:
+    x-swagger-router-controller: UserController
+    post:
+      description: login users
+      operationId: auth
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - in: body
+          name: body
+          description: "request payload to sign a user"
+          required: true
+          schema:
+            $ref: "#/definitions/UserLoginReq"
+      responses:
+        "200":
+          description: "access token and refresh token"
+          schema:
+            $ref: "#/definitions/LoginRes"
+        "400":
+          description: "the validation failed, client request is invalid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "401":
+          description: "invalid username or password"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "404":
+          description: "user not found with specified email"
+          schema:
+            $ref: '#/definitions/ErrorDetail'
+  /items:
+    x-swagger-router-controller: ItemController
+    post:
+      description: 'Store items'
+      operationId: storeItem
+      security:
+          - auth: []
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - in: header
+          name: Authorization
+          type: string
+          format: string
+          required: true
+        - in: body
+          name: body
+          description: "request payload to create a item"
+          required: true
+          schema:
+            $ref: "#/definitions/ItemReq"
+      responses:
+        "200":
+          description: "successful operation"
+          schema:
+            $ref: "#/definitions/SuccessDetail"
+        "400":
+          description: "the validation failed, client request is invalid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "401":
+          description: "invalid username or password"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "404":
+          description: "user not found with specified email"
+          schema:
+            $ref: '#/definitions/ErrorDetail'
+    get:
+      description: "Get a list of all the products. The implementations should support various filter criteria and must support pagination. non-anonymous, super-admin and admin users"
+      operationId: getItems
+      security:
+        - auth: []
+      produces:
+        - application/json
+      parameters:
+        - in: header
+          name: Authorization
+          description: "Basic Authorization"
+          required: true
+          type: string
+          format: string
+        - in: query
+          name: name
+          description: "The user's name must be url encoded, case insensitive, firstName or lastName. The implementations must not match the name exactly and must use regular expressions instead"
+          type: string
+          format: string
+        - in: query
+          name: page
+          description: "The page 0 based indexing. Assume 0 by default if null"
+          type: number
+          format: integer
+        - in: query
+          name: limit
+          description: "The maximum no of results to return. Assume 10 by default if null"
+          type: number
+          format: integer
+        - in: query
+          name: sort
+          description: "The sort by keyname, if implementations doesn't support sorting by the provided key, implementations must return 400 with proper error message and error code"
+          type: string
+          format: string
+        - in: query
+          name: order
+          description: "The sort order, must be asc or desc"
+          type: string
+          format: string
+      responses:
+        "200":
+          description: "successful operation"
+          schema:
+            allOf:
+              - $ref: "#/definitions/SuccessDetail"
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/definitions/ItemRes"
+        "400":
+          description: "the validation failed, client request is invalid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "401":
+          description: "access token is not valid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+  /items/{itemCode}:
+    x-swagger-router-controller: ItemController
+    put:
+      description: "update product details"
+      operationId: updateItem
+      security:
+        - auth: []
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - in: header
+          name: Authorization
+          type: string
+          format: string
+          required: true
+        - in: path
+          name: itemCode
+          description: "the item's code"
+          required: true
+          type: string
+          format: string
+        - in: body
+          name: body
+          description: "request payload to update a product"
+          required: true
+          schema:
+            $ref: "#/definitions/ItemUpdateReq"
+      responses:
+        "200":
+          description: "operation successfully"
+          schema:
+            $ref: "#/definitions/SuccessDetail"
+        "400":
+          description: "the validation failed, client request is invalid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "401":
+          description: "invalid username or password"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "404":
+          description: "user not found with specified email"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+    get:
+      description: "Get details of a product. non-anonymous, super-admin and admin users"
+      operationId: getItemByCode
+      security:
+        - auth: []
+      produces:
+        - application/json
+      parameters:
+        - in: header
+          name: Authorization
+          description: "Basic Authorization"
+          required: true
+          type: string
+          format: string
+        - in: path
+          name: itemCode
+          description: "the item's code"
+          required: true
+          type: string
+          format: string
+      responses:
+        "200":
+          description: "successful operation"
+          schema:
+            allOf:
+              - $ref: "#/definitions/SuccessDetail"
+              - type: object
+                properties:
+                  data:
+                    type: object
+                    $ref: "#/definitions/ItemRes"
+        "400":
+          description: "the validation failed, client request is invalid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "401":
+          description: "access token is not valid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "404":
+          description: "if the specified entity with id is not found"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+    delete:
+      description: "Delete product. non-anonymous, super-admin and admin users"
+      operationId: deleteItem
+      security:
+        - auth: []
+      produces:
+        - application/json
+      parameters:
+        - in: header
+          name: Authorization
+          description: "Basic Authorization"
+          required: true
+          type: string
+          format: string
+        - in: path
+          name: itemCode
+          description: "the item's code"
+          required: true
+          type: string
+          format: string
+      responses:
+        "200":
+          description: "successful operation"
+        "401":
+          description: "access token is not valid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "404":
+          description: "if the specified entity with id is not found"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+  /invoices:
+    x-swagger-router-controller: InvoiceController
+    post:
+      description: 'Issue invoice'
+      operationId: generateInvoice
+      security:
+        - auth: []
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - in: header
+          name: Authorization
+          type: string
+          format: string
+          required: true
+        - in: body
+          name: body
+          description: "request payload to create a sales"
+          required: true
+          schema:
+            $ref: "#/definitions/SalesReq"
+      responses:
+        "200":
+          description: "operation successfully"
+          schema:
+            allOf:
+              - $ref: "#/definitions/SuccessDetail"
+              - type: object
+                properties:
+                  data:
+                    type: object
+                    $ref: "#/definitions/SalesRes"
+        "400":
+          description: "the validation failed, client request is invalid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "401":
+          description: "invalid username or password"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "404":
+          description: "user not found with specified email"
+          schema:
+            $ref: '#/definitions/ErrorDetail'
+    get:
+      description: "Get a list of all the sales. The implementations should support various filter criteria and must support pagination. non-anonymous, super-admin and admin users"
+      operationId: getInvoices
+      security:
+        - auth: []
+      produces:
+        - application/json
+      parameters:
+        - in: header
+          name: Authorization
+          description: "Basic Authorization"
+          required: true
+          type: string
+          format: string
+        - in: query
+          name: name
+          description: "The user's name must be url encoded, case insensitive, firstName or lastName. The implementations must not match the name exactly and must use regular expressions instead"
+          type: string
+          format: string
+        - in: query
+          name: email
+          description: "The user's email must be url encoded, case insensitive, email. The implementations must not match the email exactly and must use regular expressions instead"
+          type: string
+          format: string
+        - in: query
+          name: country
+          description: "The user's country must be url encoded, case insensitive, country."
+          type: string
+          format: string
+        - in: query
+          name: page
+          description: "The page 0 based indexing. Assume 0 by default if null"
+          type: number
+          format: integer
+        - in: query
+          name: limit
+          description: "The maximum no of results to return. Assume 10 by default if null"
+          type: number
+          format: integer
+        - in: query
+          name: sort
+          description: "The sort by keyname, if implementations doesn't support sorting by the provided key, implementations must return 400 with proper error message and error code"
+          type: string
+          format: string
+        - in: query
+          name: order
+          description: "The sort order, must be asc or desc"
+          type: string
+          format: string
+      responses:
+        "200":
+          description: "successful operation"
+          headers:
+            X-Count:
+              description: The total number of elements (without the limit)
+              type: integer
+          schema:
+            allOf:
+              - $ref: "#/definitions/SuccessDetail"
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/definitions/Sales"
+        "400":
+          description: "the validation failed, client request is invalid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "401":
+          description: "access token is not valid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+  /invoices/{traderInvoiceNo}:
+    x-swagger-router-controller: InvoiceController
+    get:
+      description: "Get details of a sales. non-anonymous, super-admin and admin users"
+      operationId: getInvoiceByTraderInvoiceNo
+      security:
+        - auth: []
+      produces:
+        - application/json
+      parameters:
+        - in: header
+          name: Authorization
+          description: "Basic Authorization"
+          required: true
+          type: string
+          format: string
+        - in: path
+          name: traderInvoiceNo
+          description: "the sale's trader Invoice No"
+          required: true
+          type: string
+          format: string
+      responses:
+        "200":
+          description: "successful operation"
+          schema:
+            allOf:
+              - $ref: "#/definitions/SuccessDetail"
+              - type: object
+                properties:
+                  data:
+                    type: object
+                    $ref: "#/definitions/SalesDetail"
+        "400":
+          description: "the validation failed, client request is invalid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "401":
+          description: "access token is not valid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "404":
+          description: "if the specified entity with id is not found"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+  /customers:
+    x-swagger-router-controller: CustomerController
+    get:
+      description: "Get a list of all the customers. The implementations should support various filter criteria and must support pagination. non-anonymous, super-admin and admin users"
+      operationId: getCustomers
+      security:
+        - auth: []
+      produces:
+        - application/json
+      parameters:
+        - in: header
+          name: Authorization
+          type: string
+          format: string
+          required: true
+        - in: query
+          name: name
+          description: "The customer's name must be url encoded, case insensitive. The implementations must not match the name exactly and must use regular expressions instead"
+          type: string
+          format: string
+        - in: query
+          name: page
+          description: "The page 0 based indexing. Assume 0 by default if null"
+          type: number
+          format: integer
+        - in: query
+          name: limit
+          description: "The maximum no of results to return. Assume 10 by default if null"
+          type: number
+          format: integer
+        - in: query
+          name: sort
+          description: "The sort by keyname, if implementations doesn't support sorting by the provided key, implementations must return 400 with proper error message and error code"
+          type: string
+          format: string
+        - in: query
+          name: order
+          description: "The sort order, must be asc or desc"
+          type: string
+          format: string
+      responses:
+        "200":
+          description: "successful operation"
+          headers:
+            X-Count:
+              description: The total number of elements (without the limit)
+              type: integer
+          schema:
+            allOf:
+              - $ref: "#/definitions/SuccessDetail"
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/definitions/CustomerReq"
+        "400":
+          description: "the validation failed, client request is invalid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "401":
+          description: "access token is not valid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+    post:
+      description: Save Customer
+      operationId: saveCustomer
+      security:
+          - auth: []
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - in: header
+          name: Authorization
+          type: string
+          format: string
+          required: true
+        - in: body
+          name: body
+          description: "request payload to create a sales"
+          required: true
+          schema:
+            $ref: "#/definitions/CustomerReq"
+      responses:
+        "200":
+          description: "operation successfully"
+          schema:
+            $ref: "#/definitions/SuccessDetail"
+        "400":
+          description: "the validation failed, client request is invalid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "401":
+          description: "invalid username or password"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "404":
+          description: "user not found with specified email"
+          schema:
+            $ref: '#/definitions/ErrorDetail'
+  /customers/{customerPin}:
+    x-swagger-router-controller: CustomerController
+    put:
+      description: "update customer details"
+      operationId: updateCustomer
+      security:
+        - auth: []
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - in: header
+          name: Authorization
+          type: string
+          format: string
+          required: true
+        - in: path
+          name: customerPin
+          description: "the customer's pin"
+          required: true
+          type: string
+          format: string
+        - in: body
+          name: body
+          description: "request payload to update a customer"
+          required: true
+          schema:
+            $ref: "#/definitions/CustomerReq"
+      responses:
+        "200":
+          description: "operation successfully"
+          schema:
+            $ref: "#/definitions/SuccessDetail"
+        "400":
+          description: "the validation failed, client request is invalid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "401":
+          description: "invalid username or password"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "404":
+          description: "user not found with specified email"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+    get:
+      description: "Get details of a customer. non-anonymous, super-admin and admin users"
+      operationId: getCustomerByPin
+      security:
+        - auth: []
+      produces:
+        - application/json
+      parameters:
+        - in: header
+          name: Authorization
+          description: "Basic Authorization"
+          required: true
+          type: string
+          format: string
+        - in: path
+          name: customerPin
+          description: "the customer's pin"
+          required: true
+          type: string
+          format: string
+      responses:
+        "200":
+          description: "successful operation"
+          schema:
+            allOf:
+              - $ref: "#/definitions/SuccessDetail"
+              - type: object
+                properties:
+                  data:
+                    type: object
+                    $ref: "#/definitions/CustomerReq"
+        "400":
+          description: "the validation failed, client request is invalid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "401":
+          description: "access token is not valid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "404":
+          description: "if the specified entity with id is not found"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+    delete:
+      description: "Delete Customer. non-anonymous, super-admin and admin users"
+      operationId: deleteCustomer
+      security:
+        - auth: []
+      produces:
+        - application/json
+      parameters:
+        - in: header
+          name: Authorization
+          description: "Basic Authorization"
+          required: true
+          type: string
+          format: string
+        - in: path
+          name: customerPin
+          description: "the customer's PIN"
+          required: true
+          type: string
+          format: string
+      responses:
+        "200":
+          description: "successful operation"
+        "401":
+          description: "access token is not valid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "404":
+          description: "if the specified entity with id is not found"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+  /notices:
+    x-swagger-router-controller: NoticeController
+    get:
+      description: "Get all notices. non-anonymous, super-admin and admin users"
+      operationId: getNotices
+      security:
+        - auth: []
+      produces:
+        - application/json
+      parameters:
+        - in: header
+          name: Authorization
+          description: "Basic Authorization"
+          required: true
+          type: string
+          format: string
+      responses:
+        "200":
+          description: "successful operation"
+          headers:
+            X-Count:
+              description: The total number of elements (without the limit)
+              type: integer
+          schema:
+            allOf:
+              - $ref: "#/definitions/SuccessDetail"
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/definitions/Notice"
+              
+        "400":
+          description: "the validation failed, client request is invalid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "401":
+          description: "access token is not valid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "404":
+          description: "if the specified entity with id is not found"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+  /countries:
+    x-swagger-router-controller: CodeController
+    get:
+      description: "Get all countries with their code. non-anonymous, super-admin and admin users"
+      operationId: getCountries
+      security:
+        - auth: []
+      produces:
+        - application/json
+      parameters:
+        - in: header
+          name: Authorization
+          description: "Basic Authorization"
+          required: true
+          type: string
+          format: string
+      responses:
+        "200":
+          description: "successful operation"
+          headers:
+            X-Count:
+              description: The total number of elements (without the limit)
+              type: integer
+          schema:
+            allOf:
+              - $ref: "#/definitions/SuccessDetail"
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/definitions/Country"
+        "400":
+          description: "the validation failed, client request is invalid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "401":
+          description: "access token is not valid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "404":
+          description: "if the specified entity with id is not found"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+  /currencies:
+    x-swagger-router-controller: CodeController
+    get:
+      description: "Get all currencies with their code. non-anonymous, super-admin and admin users"
+      operationId: getCurrencies
+      security:
+        - auth: []
+      produces:
+        - application/json
+      parameters:
+        - in: header
+          name: Authorization
+          description: "Basic Authorization"
+          required: true
+          type: string
+          format: string
+      responses:
+        "200":
+          description: "successful operation"
+          headers:
+            X-Count:
+              description: The total number of elements (without the limit)
+              type: integer
+          schema:
+            allOf:
+              - $ref: "#/definitions/SuccessDetail"
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/definitions/Currency"
+        "400":
+          description: "the validation failed, client request is invalid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "401":
+          description: "access token is not valid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "404":
+          description: "if the specified entity with id is not found"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+  /qtyunitcodes:
+    x-swagger-router-controller: CodeController
+    get:
+      description: "Get all of quantity unit of measure with their codes. non-anonymous, super-admin and admin users"
+      operationId: getQuatityUnitCodes
+      security:
+        - auth: []
+      produces:
+        - application/json
+      parameters:
+        - in: header
+          name: Authorization
+          description: "Basic Authorization"
+          required: true
+          type: string
+          format: string
+      responses:
+        "200":
+          description: "successful operation"
+          headers:
+            X-Count:
+              description: The total number of elements (without the limit)
+              type: integer
+          schema:
+            allOf:
+              - $ref: "#/definitions/SuccessDetail"
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/definitions/QtyCode"
+        "400":
+          description: "the validation failed, client request is invalid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "401":
+          description: "access token is not valid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "404":
+          description: "if the specified entity with id is not found"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+  /pkgunitcodes:
+    x-swagger-router-controller: CodeController
+    get:
+      description: "Get all of package unit of measures with their codes. non-anonymous, super-admin and admin users"
+      operationId: getPackageUnitCodes
+      security:
+        - auth: []
+      produces:
+        - application/json
+      parameters:
+        - in: header
+          name: Authorization
+          description: "Basic Authorization"
+          required: true
+          type: string
+          format: string
+      responses:
+        "200":
+          description: "successful operation"
+          headers:
+            X-Count:
+              description: The total number of elements (without the limit)
+              type: integer
+          schema:
+            allOf:
+              - $ref: "#/definitions/SuccessDetail"
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/definitions/PkgCode"
+        "400":
+          description: "the validation failed, client request is invalid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "401":
+          description: "access token is not valid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "404":
+          description: "if the specified entity with id is not found"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+  /itemcodes:
+    x-swagger-router-controller: CodeController
+    get:
+      description: "Get all of item classification codes. non-anonymous, super-admin and admin users"
+      operationId: getItemCodes
+      security:
+        - auth: []
+      produces:
+        - application/json
+      parameters:
+        - in: header
+          name: Authorization
+          description: "Basic Authorization"
+          required: true
+          type: string
+          format: string
+      responses:
+        "200":
+          description: "successful operation"
+          headers:
+            X-Count:
+              description: The total number of elements (without the limit)
+              type: integer
+          schema:
+            allOf:
+              - $ref: "#/definitions/SuccessDetail"
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/definitions/ItemCode"
+        "400":
+          description: "the validation failed, client request is invalid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "401":
+          description: "access token is not valid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "404":
+          description: "if the specified entity with id is not found"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+  /branches:
+    x-swagger-router-controller: BranchController
+    get:
+      description: "Get all notices. non-anonymous, super-admin and admin users"
+      operationId: getBranches
+      security:
+        - auth: []
+      produces:
+        - application/json
+      parameters:
+        - in: header
+          name: Authorization
+          description: "Basic Authorization"
+          required: true
+          type: string
+          format: string
+      responses:
+        "200":
+          description: "successful operation"
+          headers:
+            X-Count:
+              description: The total number of elements (without the limit)
+              type: integer
+          schema:
+            allOf:
+              - $ref: "#/definitions/SuccessDetail"
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/definitions/Branch"
+        "400":
+          description: "the validation failed, client request is invalid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "401":
+          description: "access token is not valid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "404":
+          description: "if the specified entity with id is not found"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+  /imports/queries:
+    x-swagger-router-controller: PurchaseController
+    get:
+      description: "Get all imported items. non-anonymous, super-admin and admin users"
+      operationId: queryImports
+      security:
+        - auth: []
+      produces:
+        - application/json
+      parameters:
+        - in: header
+          name: Authorization
+          description: "Basic Authorization"
+          required: true
+          type: string
+          format: string
+        - in: query
+          name: last_request_date
+          description: "Last request date or start date of fetching import data upto date format yyyyMMddhhmmss"
+          type: string
+          format: string
+      responses:
+        "200":
+          description: "successful operation"
+          headers:
+            X-Count:
+              description: The total number of elements (without the limit)
+              type: integer
+          schema:
+            allOf:
+              - $ref: "#/definitions/SuccessDetail"
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/definitions/ImportItemQuery"
+        "400":
+          description: "the validation failed, client request is invalid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "401":
+          description: "access token is not valid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "404":
+          description: "if the specified entity with id is not found"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+  /purchases/queries:
+    x-swagger-router-controller: PurchaseController
+    get:
+      description: "Get all notices. non-anonymous, super-admin and admin users"
+      operationId: queryPurchases
+      security:
+        - auth: []
+      produces:
+        - application/json
+      parameters:
+        - in: header
+          name: Authorization
+          description: "Basic Authorization"
+          required: true
+          type: string
+          format: string
+        - in: query
+          name: last_request_date
+          description: "Last request date or start date of fetching purchase data upto date format yyyyMMddhhmmss"
+          type: string
+          format: string
+      responses:
+        "200":
+          description: "successful operation"
+          headers:
+            X-Count:
+              description: The total number of elements (without the limit)
+              type: integer
+          schema:
+            allOf:
+              - $ref: "#/definitions/SuccessDetail"
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/definitions/PurchaseQuery"
+        "400":
+          description: "the validation failed, client request is invalid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "401":
+          description: "access token is not valid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "404":
+          description: "if the specified entity with id is not found"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+  /stock/transfer/queries:
+    x-swagger-router-controller: StockController
+    get:
+      description: "Get all stock transfers. non-anonymous, super-admin and admin users"
+      operationId: queryStockTransfers
+      security:
+        - auth: []
+      produces:
+        - application/json
+      parameters:
+        - in: header
+          name: Authorization
+          description: "Basic Authorization"
+          required: true
+          type: string
+          format: string
+        - in: query
+          name: last_request_date
+          description: "Last request date or start date of fetching stocks data upto date format yyyyMMddhhmmss"
+          type: string
+          format: string
+      responses:
+        "200":
+          description: "successful operation"
+          headers:
+            X-Count:
+              description: The total number of elements (without the limit)
+              type: integer
+          schema:
+            allOf:
+              - $ref: "#/definitions/SuccessDetail"
+              - type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/definitions/StockTransferQuery"
+        "400":
+          description: "the validation failed, client request is invalid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "401":
+          description: "access token is not valid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "404":
+          description: "if the specified entity with id is not found"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+  /purchases/queries/converted:
+    x-swagger-router-controller: PurchaseController
+    post:
+      description: Save converted purchases
+      operationId: saveConvertedPurchases
+      security:
+        - auth: []
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - in: header
+          name: Authorization
+          type: string
+          format: string
+          required: true
+        - in: body
+          name: body
+          description: "request payload to create a sales"
+          required: true
+          schema:
+            $ref: "#/definitions/PurchaseQueryReq"
+      responses:
+        "200":
+          description: "operation successfully"
+          schema:
+            $ref: "#/definitions/SuccessDetail"
+        "400":
+          description: "the validation failed, client request is invalid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "401":
+          description: "invalid username or password"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "404":
+          description: "user not found with specified email"
+          schema:
+            $ref: '#/definitions/ErrorDetail'
+  /imports/queries/converted:
+    x-swagger-router-controller: PurchaseController
+    post:
+      description: Save converted imports
+      operationId: saveConvertedImorts
+      security:
+        - auth: []
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - in: header
+          name: Authorization
+          type: string
+          format: string
+          required: true
+        - in: body
+          name: body
+          description: "request payload to create a sales"
+          required: true
+          schema:
+            $ref: "#/definitions/ConvertedImportItem"
+      responses:
+        "200":
+          description: "operation successfully"
+          schema:
+            $ref: "#/definitions/SuccessDetail"
+        "400":
+          description: "the validation failed, client request is invalid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "401":
+          description: "invalid username or password"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "404":
+          description: "user not found with specified email"
+          schema:
+            $ref: '#/definitions/ErrorDetail'
+  /stock/transfer/queries/receive:
+    x-swagger-router-controller: StockController
+    post:
+      description: Save stock movements
+      operationId: saveReceivedStockTransfers
+      security:
+        - auth: []
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - in: header
+          name: Authorization
+          type: string
+          format: string
+          required: true
+        - in: body
+          name: body
+          description: "request payload to create a sales"
+          required: true
+          schema:
+            $ref: "#/definitions/TransferStockReceiveReq"
+      responses:
+        "200":
+          description: "operation successfully"
+          schema:
+            $ref: "#/definitions/SuccessDetail"
+        "400":
+          description: "the validation failed, client request is invalid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "401":
+          description: "invalid username or password"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "404":
+          description: "user not found with specified email"
+          schema:
+            $ref: '#/definitions/ErrorDetail'
+  /stock/transfers:
+    x-swagger-router-controller: StockController
+    post:
+      description: Move Stocks 
+      operationId: saveStockTransfers
+      security:
+        - auth: []
+      consumes:
+        - application/json
+      produces:
+        - application/json
+      parameters:
+        - in: header
+          name: Authorization
+          type: string
+          format: string
+          required: true
+        - in: body
+          name: body
+          description: "request payload to create a sales"
+          required: true
+          schema:
+            $ref: "#/definitions/TransferStockReq"
+      responses:
+        "200":
+          description: "operation successfully"
+          schema:
+            $ref: "#/definitions/SuccessDetail"
+        "400":
+          description: "the validation failed, client request is invalid"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "401":
+          description: "invalid username or password"
+          schema:
+            $ref: "#/definitions/ErrorDetail"
+        "404":
+          description: "user not found with specified email"
+          schema:
+            $ref: '#/definitions/ErrorDetail'
+  # complex objects have schema definitions
+definitions:
+  ErrorDetail:
+    type: object
+    required:
+      - message
+      - status
+      - statusCode
+    properties:
+      status:
+        type: number
+        format: integer
+        enum: [400, 401, 404, 500, 502, 504]
+        description: "the status for future reference"
+      statusCode:
+        type: string
+        description: "the error code for future reference"
+      message:
+        type: string
+        description: "the detailed description/cause of the error"
+  SuccessDetail:
+    type: object
+    required:
+      - status
+      - message
+      - statusCode
+    properties:
+      status:
+        type: number
+        format: integer
+        enum: [200, 204,202]
+        description: "the status for future reference"
+      statusCode:
+        type: string
+        description: "the success code for future reference"
+      message:
+        type: string
+        description: "the detailed messages"
+  UserLoginReq:
+    type: object
+    required:
+      - password
+      - username
+    properties:
+      password:
+        type: string
+        description: "the password"
+      username:
+        type: string
+        description: "the username"
+  LoginRes:
+    type: object
+    required:
+      - accessToken
+    properties:
+      # the access token
+      accessToken:
+        type: string
+        description: "the access token that can be used as Authorization header"
+  ItemReq:
+    type: object
+    required:
+      - name
+      - orgCountryCode
+      - unitPrice
+      - itemTypeCode
+      - qtyUnitCode
+      - pkgUnitCode
+      - taxCode
+      - itemClassCode
+    properties:
+      name:
+        type: string
+        format: string
+        description: "Item's name e.g. xyz"
+      orgCountryCode:
+        type: string
+        format: string
+        description: "Item code of country of origin, see List from /countries endpoint"
+      unitPrice:
+        type: number
+        format: double
+        description: "Item unit price"
+      itemTypeCode:
+        type: string
+        format: string
+        enum: ["1","2","3"]
+        description: "Type of the item, ie 1 -> Raw material, 2 -> Product, 3 -> Service"
+      taxCode:
+        type: string
+        format: string
+        enum: ["A","B","C", "D", "E"]
+        description: "Tax department of the item, ie A-Exempt, B-16.00%, C-0%, D-Non VAT, E-8.00%"
+      qtyUnitCode:
+        type: string
+        format: string
+        description: "Code of Quantity unit measures of the item, eg KG"
+      pkgUnitCode:
+        type: string
+        format: string
+        description: "Code of Package of the item"
+      itemClassCode:
+        type: string
+        format: string
+        description: "Classification code of the item"
+      initialStock:
+        type: number
+        format: double
+        description: "Item initial stock"
+  ItemUpdateReq:
+    type: object
+    required:
+      - name
+      - orgCountryCode
+      - unitPrice
+      - itemTypeCode
+      - qtyUnitCode
+      - pkgUnitCode
+      - taxCode
+      - itemClassCode
+    properties:
+      name:
+        type: string
+        format: string
+        description: "Item's name e.g. xyz"
+      orgCountryCode:
+        type: string
+        format: string
+        description: "Item code of country of origin, see List from /countries endpoint"
+      unitPrice:
+        type: number
+        format: double
+        description: "Item unit price"
+      itemTypeCode:
+        type: string
+        format: string
+        enum: ["1","2","3"]
+        description: "Type of the item, ie 1 -> Raw material, 2 -> Product, 3 -> Service"
+      taxCode:
+        type: string
+        format: string
+        enum: ["A","B","C", "D", "E"]
+        description: "Tax department of the item, ie A-Exempt, B-16.00%, C-0%, D-Non VAT, E-8.00%"
+      qtyUnitCode:
+        type: string
+        format: string
+        description: "Code of Quantity unit measures of the item, eg KG"
+      pkgUnitCode:
+        type: string
+        format: string
+        description: "Code of Package of the item"
+      itemClassCode:
+        type: string
+        format: string
+        description: "Classification code of the item"
+      stock:
+        type: number
+        format: double
+        description: "Item stock"
+  ItemRes:
+    type: object
+    required:
+      - name
+      - orgCountryCode
+      - unitPrice
+      - qtyUnitCode
+      - pkgUnitCode
+      - itemClassCode
+      - itemCode
+    properties:
+      name:
+        type: string
+        format: string
+        description: "Item's name e.g. xyz"
+      orgCountryCode:
+        type: string
+        format: string
+        description: "Item country of origin"
+      unitPrice:
+        type: number
+        format: double
+        description: "Item unit price"
+      typeCode:
+        type: string
+        format: string
+        enum: ["1","2","3"]
+        description: "Type of the item, ie 1 -> Raw material, 2 -> Product, 3 -> Service"
+      itemType:
+        type: string
+        format: string
+        description: "Type of the item, eg Raw material, Service or Product"
+      qtyUnitCode:
+        type: string
+        format: string
+        description: "Code of Quantity unit measures of the item, eg KG"
+      pkgUnitCode:
+        type: string
+        format: string
+        description: "Code of Package of the item"
+      itemClassCode:
+        type: string
+        format: string
+        description: "Classification code of the item"
+      itemCode:
+        type: string
+        format: string
+        description: "Code of the item"
+      stock:
+        type: number
+        format: double
+        description: "Item stock"
+  SalesReq:
+    type: object
+    required:
+      - traderInvoiceNo 
+      - totalAmount
+      - paymentType
+      - salesItems
+      - salesTypeCode
+      - receiptTypeCode
+    properties:
+      traderInvoiceNo:
+        type: string
+        format: string
+        description: "Trader sale's invoice number"
+      traderOrgInvoiceNo:
+        type: string
+        format: string
+        description: "Trader sale's original invoice number, for sales returns. For non credit note sales omit this property"
+      totalAmount:
+        type: number
+        format: double
+        description: "sale's total amount"
+      paymentType:
+        type: string
+        format: string
+        enum: ["01","02","03","04","05","06","07"]
+        description: 'Payment type opted by the customer i.e 01 -> cash, 02 -> credit, 03 -> cash/credit, 04 -> cheque, 05 -> dcard & ccard, 06 -> mobile money And 07 -> Other'
+      salesTypeCode:
+        type: string
+        format: string
+        enum: ["C","N","P","T"]
+        description: 'Sales Type code i.e C -> Copy, N -> Normal, P -> Proforma, T -> Training'
+      receiptTypeCode:
+        type: string
+        format: string
+        enum: ["S","R"]
+        description: 'Sales receipt Type code i.e S -> Sale and R -> Credit Note'
+      salesStatusCode:
+        type: string
+        format: string
+        enum: ["01","02","03","04","05","06"]
+        description: 'Sales transaction status code i.e 01 -> Wait for Approval, 02 -> Approved, 03 -> Credit Note Requested, 04 -> Canceled, 05 -> Credit Note Generated and 06 -> Transferred'
+      salesDate:
+        type: string
+        pattern: '^\d{4}\d{2}\d{2}\d{2}\d{2}\d{2}$'
+        example: '20240509050115'
+        description: 'Sales date with format YYYYMMDDhhmmss {4 digits for year, 2 digits for month, 2 digits for day, 2 digits for hour(12 based hour system), 2 digits for minutes and 2 digits for seconds}'
+      currency:
+        type: string
+        format: string
+        description: 'sales currency'
+      exchangeRate:
+        type: number
+        format: double
+        description: "sale's currency exchange rate"
+      salesItems:
+        type: array
+        items:
+          $ref: "#/definitions/SalesItem"
+      customerPin:
+        type: string
+        description: "Customer's PIN"
+  SalesItem:
+    type: object
+    properties:
+      itemCode:
+        type: string
+        format: string
+        description: 'Item code'
+      qty:
+        type: number
+        format: float
+        description: 'Item quantity'
+      pkg:
+        type: number
+        format: float
+        description: 'Item package quantity'
+      unitPrice:
+        type: number
+        format: double
+        description: 'Item unit price'
+      amount:
+        type: number
+        format: double
+        description: 'amount'
+      discountAmount:
+        type: number
+        format: float
+        description: 'Discount amount'
+      insuranceCompanyCode:
+        type: string
+        format: string
+        description: 'Insurance company code for pharmacy and insurance(Omit this property for now)'
+  SalesRes:
+    type: object
+    properties:
+      invoiceNo:
+        type: number
+        format: long
+        description: "sale's invoice number"
+      traderInvoiceNo:
+        type: string
+        format: string
+        description: "Trader sale's invoice number"
+      totalAmount:
+        type: number
+        format: double
+        description: "sale's total amount"
+      totalTaxableAmount:
+        type: number
+        format: double
+        description: "sale's total amount exclusisve tax"
+      totalTaxAmount:
+        type: number
+        format: double
+        description: "sale's total tax amount"
+      paymentType:
+        type: string
+        format: string
+        enum: ["01","02","03","04","05","06","07"]
+        description: 'Payment type opted by the customer i.e 01 -> cash, 02 -> credit, 03 -> cash/credit, 04 -> cheque, 05 -> dcard & ccard, 06 -> mobile money And 07 -> Other'
+      salesTypeCode:
+        type: string
+        format: string
+        enum: ["C","N","P","T"]
+        description: 'Sales Type code i.e C -> Copy, N -> Normal, P -> Proforma, T -> Training'
+      receiptTypeCode:
+        type: string
+        format: string
+        enum: ["S","R"]
+        description: 'Sales receipt Type code i.e S -> Sale and R -> Credit Note'
+      salesStatusCode:
+        type: string
+        format: string
+        enum: ["01","02","03","04","05","06"]
+        description: 'Sales transaction status code i.e 01 -> Wait for Approval, 02 -> Approved, 03 -> Credit Note Requested, 04 -> Canceled, 05 -> Credit Note Generated and 06 -> Transferred'
+      salesDate:
+        type: string
+        pattern: '^\d{4}\d{2}\d{2}\d{2}\d{2}\d{2}$'
+        example: '20240509050115'
+        description: 'Sales date with format YYYYMMDDhhmmss {4 digits for year, 2 digits for month, 2 digits for day, 2 digits for hour(12 based hour system), 2 digits for minutes and 2 digits for seconds}'
+      currency:
+        type: string
+        format: string
+        description: 'sales currency'
+      internalData:
+        type: string
+        format: string
+        description: 'Invoice cu internal data'
+      signature:
+        type: string
+        format: string
+        description: 'Invoice cu signature'
+      scdcId:
+        type: string
+        format: string
+        description: 'Invoice cu id'
+      scuReceiptDate:
+        type: string
+        format: string
+        description: 'Invoice cu receipt date'
+      scuReceiptNo:
+        type: number
+        format: long
+        description: 'Invoice cu receip number'
+      invoiceVerificationUrl:
+        type: string
+        format: string
+        description: 'Invoice verification url'
+      exchangeRate:
+        type: number
+        format: double
+        description: "sale's currency exchange rate"
+      salesItems:
+        type: array
+        items:
+          $ref: "#/definitions/SalesItemRes"
+      customer:
+        type: object
+  SalesItemRes:
+    type: object
+    properties:
+      itemCode:
+        type: string
+        format: string
+        description: 'Item code'
+      itemName:
+        type: string
+        format: string
+        description: 'Item name'
+      qty:
+        type: number
+        format: float
+        description: 'Item quantity'
+      pkg:
+        type: number
+        format: float
+        description: 'Item package quantity'
+      unitPrice:
+        type: number
+        format: double
+        description: 'Item unit price'
+      discountRate:
+        type: number
+        format: float
+        description: 'Discount rate in percent'
+      discountAmount:
+        type: number
+        format: float
+        description: 'Discount amount'
+      taxAmount:
+        type: number
+        format: double
+        description: 'Tax amount'
+      taxableAmount:
+        type: number
+        format: double
+        description: 'Taxable amount'
+      amount:
+        type: number
+        format: double
+        description: 'Tax amount'
+      itemClassCode:
+        type: string
+        format: string
+        description: 'Item Class code'
+      taxCode:
+        type: string
+        format: string
+        description: 'Item tax group' 
+  CustomerReq:
+   type: object
+   required:
+    - name
+    - pin
+    - phone
+   properties:
+    name:
+      type: string
+      format: string
+      description: "Customer name"
+    pin:
+      type: string
+      format: string
+      description: "Customer pin"
+    phone:
+      type: string
+      format: string
+      description: "phone"
+  Sales:
+    type: object
+    properties:
+      traderInvoiceNo:
+        type: string
+        format: string
+        description: "Trader sale's invoice number"
+      totalAmount:
+        type: number
+        format: double
+        description: "sale's total amount"
+      taxAmount:
+        type: number
+        format: double
+        description: "sale's total tax amount"
+      taxableAmount:
+        type: number
+        format: double
+        description: "sale's total taxable amount"
+      paymentType:
+        type: string
+        format: string
+        enum: ["01","02","03","04","05","06","07"]
+        description: 'Payment type opted by the customer i.e 01 -> cash, 02 -> credit, 03 -> cash/credit, 04 -> cheque, 05 -> dcard & ccard, 06 -> mobile money And 07 -> Other'
+      salesTypeCode:
+        type: string
+        format: string
+        enum: ["C","N","P","T"]
+        description: 'Sales Type code i.e C -> Copy, N -> Normal, P -> Proforma, T -> Training'
+      receiptTypeCode:
+        type: string
+        format: string
+        enum: ["S","R"]
+        description: 'Sales receipt Type code i.e S -> Sale and R -> Credit Note'
+      salesDate:
+        type: string
+        pattern: '^\d{4}\d{2}\d{2}\d{2}\d{2}\d{2}$'
+        example: '20240509050115'
+        description: 'Sales date with format YYYYMMDDhhmmss {4 digits for year, 2 digits for month, 2 digits for day, 2 digits for hour(12 based hour system), 2 digits for minutes and 2 digits for seconds}'
+      status:
+        type: string
+        format: string
+        description: 'sales status wheather sent to KRA or not'
+      currency:
+        type: string
+        format: string
+        description: 'sales currency'
+      exchangeRate:
+        type: number
+        format: double
+        description: "sale's currency exchange rate"
+      customerPin:
+        type: string
+        description: "Customer's PIN"
+      customerName:
+        type: string
+        description: "Customer's Name"
+  SalesDetail:
+    type: object
+    properties:
+      traderInvoiceNo:
+        type: string
+        format: string
+        description: "Trader sale's invoice number"
+      totalAmount:
+        type: number
+        format: double
+        description: "sale's total amount"
+      taxAmount:
+        type: number
+        format: double
+        description: "sale's total tax amount"
+      taxableAmount:
+        type: number
+        format: double
+        description: "sale's total taxable amount"
+      paymentType:
+        type: string
+        format: string
+        enum: ["01","02","03","04","05","06","07"]
+        description: 'Payment type opted by the customer i.e 01 -> cash, 02 -> credit, 03 -> cash/credit, 04 -> cheque, 05 -> dcard & ccard, 06 -> mobile money And 07 -> Other'
+      salesTypeCode:
+        type: string
+        format: string
+        enum: ["C","N","P","T"]
+        description: 'Sales Type code i.e C -> Copy, N -> Normal, P -> Proforma, T -> Training'
+      receiptTypeCode:
+        type: string
+        format: string
+        enum: ["S","R"]
+        description: 'Sales receipt Type code i.e S -> Sale and R -> Credit Note'
+      salesDate:
+        type: string
+        pattern: "yyyyMMddhhmmss"
+        description: 'Sales date with format YYYYMMDDhhmmss {4 digits for year, 2 digits for month, 2 digits for day, 2 digits for hour(12 based hour system), 2 digits for minutes and 2 digits for seconds}'
+      status:
+        type: string
+        format: string
+        description: 'sales status wheather sent to KRA or not'
+      currency:
+        type: string
+        format: string
+        description: 'sales currency'
+      exchangeRate:
+        type: number
+        format: double
+        description: "sale's currency exchange rate"
+      customerPin:
+        type: string
+        description: "Customer's PIN"
+      customerName:
+        type: string
+        description: "Customer's Name"
+      salesItems:
+        type: array
+        items:
+          $ref: "#/definitions/SalesItemRes"
+  Country:
+    type: object
+    properties:
+      name:
+        type: string
+        format: string
+        description: "Name of the country"
+      code:
+        type: string
+        format: string
+        description: "Code of the country"
+  Currency:
+    type: object
+    properties:
+      name:
+        type: string
+        format: string
+        description: "Name of the currency"
+      code:
+        type: string
+        format: string
+        description: "Code of the currency"
+      description:
+        type: string
+        format: string
+        description: "Description of the currency"
+  Notice:
+    type: object
+    properties:
+      noticeNo:
+        type: number
+        format: integer
+        description: "Notice No"
+      title:
+        type: string
+        format: string
+        description: "Notice title"
+      content:
+        type: string
+        format: string
+        description: "Notice content"
+  ItemCode:
+    type: object
+    properties:
+      name:
+        type: string
+        format: string
+        description: "Name of the Item Code"
+      code:
+        type: string
+        format: string
+        description: "Code of the Item Code"
+      taxCode:
+        type: string
+        format: string
+        description: "Tax code"
+  QtyCode:
+    type: object
+    properties:
+      name:
+        type: string
+        format: string
+        description: "Name of the Quantity Code"
+      code:
+        type: string
+        format: string
+        description: "Code of the Quantity Code"
+  PkgCode:
+    type: object
+    properties:
+      name:
+        type: string
+        format: string
+        description: "Name of the PKG Code"
+      code:
+        type: string
+        format: string
+        description: "Code of the PKG Code"
+  Branch:
+    type: object
+    properties:
+      bhfId:
+        type: string
+        format: string
+        description: "branch id"
+      name:
+        type: string
+        format: string
+        description: "Name of Branch"
+      provinceName:
+        type: string
+        format: string
+        description: "Name of Branch province"
+      districtname:
+        type: string
+        format: string
+        description: "Name of Branch District"
+  ImportItemQuery:
+    type: object
+    properties:
+      taskCode:
+        type: string
+        format: string
+        description: "Declaration task code"
+      declarationDate:
+        type: string
+        format: string
+        description: "Date of declaration"
+      itemSeq:
+        type: number
+        format: integer
+        description: "Item sequence number"
+      declarationNo:
+        type: string
+        format: string
+        description: "Import declaration number"
+      hsCode:
+        type: string
+        format: string
+        description: "Item hs code"
+      itemName:
+        type: string
+        format: string
+        description: "Item name"
+      exportCountryCode:
+        type: string
+        format: string
+        description: "Item country of origin"
+      pkg:
+        type: number
+        format: float
+        description: "Item pkg unit"
+      qty:
+        type: number
+        format: float
+        description: "Item qty unit"
+      supplierName:
+        type: string
+        format: string
+        description: "Name of the supplier"
+      agentName:
+        type: string
+        format: string
+        description: "Name of the agent"
+      currency:
+        type: string
+        format: string
+        description: "Invoice used currency"
+      invoiceAmount:
+        type: number
+        format: double
+        description: "Invoice amount"
+      exchangeRate:
+        type: number
+        format: double
+        description: "Invoice currency exchage rate"
+  ConvertedImportItem:
+    type: object
+    required:
+      - taskCode
+      - declarationNo
+      - hsCode
+      - itemCode
+    properties:
+      taskCode:
+        type: string
+        format: string
+        description: "Declaration task code"
+      declarationNo:
+        type: string
+        format: string
+        description: "Import declaration number"
+      hsCode:
+        type: string
+        format: string
+        description: "Item hs code"
+      itemCode:
+        type: string
+        format: string
+        description: "Item code"
+  StockTransferQuery:
+    type: object
+    properties:
+      customerTin:
+        type: string
+        format: string
+        description: "Customer TIN"
+      customerBhfId:
+        type: string
+        format: string
+        description: "Customer Branch ID"
+      occuredDate:
+        type: string
+        pattern: '^\d{4}\d{2}\d{2}$'
+        example: '20240509'
+        description: 'Occured date with format YYYYMMDD{4 digits for year, 2 digits for month, 2 digits for day}'
+      totalAmount:
+        type: number
+        format: double
+        description: "Transfer total amount"
+      totalTaxableAmount:
+        type: number
+        format: double
+        description: "Transfer total taxable amount"
+      totalTaxAmount:
+        type: number
+        format: double
+        description: "Transfer total tax amount"
+      stockItems:
+        type: array
+        items:
+          $ref: "#/definitions/StockItem"
+  StockItem:
+    type: object
+    properties:
+      itemCode:
+        type: string
+        format: string
+        description: 'Item code'
+      itemName:
+        type: string
+        format: string
+        description: 'Item name'
+      qty:
+        type: number
+        format: float
+        description: 'Item quantity'
+      pkg:
+        type: number
+        format: float
+        description: 'Item package quantity'
+      unitPrice:
+        type: number
+        format: double
+        description: 'Item unit price'
+      discountRate:
+        type: number
+        format: float
+        description: 'Discount rate in percent'
+      discountAmount:
+        type: number
+        format: float
+        description: 'Discount amount'
+      taxAmount:
+        type: number
+        format: double
+        description: 'Tax amount'
+      taxableAmount:
+        type: number
+        format: double
+        description: 'Taxable amount'
+      amount:
+        type: number
+        format: double
+        description: 'Tax amount'
+      itemClassCode:
+        type: string
+        format: string
+        description: 'Item Class code'
+      taxCode:
+        type: string
+        format: string
+        description: 'Item tax group' 
+  TransferStockReceiveReq:
+    type: object
+    required:
+      - totalAmount
+      - totalTaxableAmount
+      - totalTaxAmount
+      - stockItems
+    properties:
+      totalAmount:
+        type: number
+        format: double
+        description: "Transfer total amount"
+      totalTaxableAmount:
+        type: number
+        format: double
+        description: "Transfer total taxable amount"
+      totalTaxAmount:
+        type: number
+        format: double
+        description: "Transfer total tax amount"
+      stockItems:
+        type: array
+        items:
+          $ref: "#/definitions/TransferStockReceiveReqItem"
+  TransferStockReceiveReqItem:
+    type: object
+    properties:
+      itemCode:
+        type: string
+        format: string
+        description: 'Item code'
+      qty:
+        type: number
+        format: float
+        description: 'Item quantity'
+      unitPrice:
+        type: number
+        format: double
+        description: 'Item unit price'
+      discountAmount:
+        type: number
+        format: float
+        description: 'Discount amount'
+      taxAmount:
+        type: number
+        format: double
+        description: 'Tax amount'
+      taxableAmount:
+        type: number
+        format: double
+        description: 'Taxable amount'
+      amount:
+        type: number
+        format: double
+        description: 'Tax amount'
+  TransferStockReq:
+    type: object
+    required:
+     - bhfId
+     - stockItems
+    properties:
+      bhfId:
+        type: string
+        format: string
+        description: 'Branch ID'
+      stockItems:
+        type: array
+        items:
+          $ref: "#/definitions/TransferStockReqItem"
+  TransferStockReqItem:
+    type: object
+    required:
+     - itemCode
+     - qty
+     - discountAmount
+    properties:
+      itemCode:
+        type: string
+        format: string
+        description: 'Item code'
+      qty:
+        type: number
+        format: float
+        description: 'Item quantity'
+      discountAmount:
+        type: number
+        format: float
+        description: 'Discount amount'
+  PurchaseQuery:
+    type: object
+    properties:
+      supplierName:
+        type: string
+        format: string
+        description: "Supplier Name"
+      supplierTin:
+        type: string
+        format: string
+        description: "Supplier TIN"
+      supplierBhfId:
+        type: string
+        format: string
+        description: "Supplier branch Id"
+      supplierInvoiceNo:
+        type: string
+        format: string
+        description: "Supplier Invoice NO"
+      totalAmount:
+        type: number
+        format: double
+        description: "sale's total amount"
+      totalTaxableAmount:
+        type: number
+        format: double
+        description: "sale's total amount exclusisve tax"
+      totalTaxAmount:
+        type: number
+        format: double
+        description: "sale's total tax amount"
+      paymentType:
+        type: string
+        format: string
+        description: 'Payment type i.e 01 -> cash, 02 -> credit, 03 -> cash/credit, 04 -> cheque, 05 -> dcard & ccard, 06 -> mobile money And 07 -> Other'
+      receiptTypeCode:
+        type: string
+        format: string
+        description: 'Purchase receipt Type code i.e P -> Purchase and R -> Credit Note for purchase'
+      salesDate:
+        type: string
+        pattern: '^\d{4}\d{2}\d{2}$'
+        example: '20240509'
+        description: 'Sales date with format YYYYMMDD{4 digits for year, 2 digits for month, 2 digits for day}'
+      validatedDate:
+        type: string
+        pattern: '^\d{4}\d{2}\d{2}\d{2}\d{2}\d{2}$'
+        example: '20240509050115'
+        description: 'Sales validated date with format YYYYMMDDhhmmss {4 digits for year, 2 digits for month, 2 digits for day, 2 digits for hour(12 based hour system), 2 digits for minutes and 2 digits for seconds}'
+      stockRealeaseDate:
+        type: string
+        pattern: '^\d{4}\d{2}\d{2}\d{2}\d{2}\d{2}$'
+        example: '20240509050115'
+        description: 'Stock release date with format YYYYMMDDhhmmss {4 digits for year, 2 digits for month, 2 digits for day, 2 digits for hour(12 based hour system), 2 digits for minutes and 2 digits for seconds}'
+      purchaseItems:
+        type: array
+        items:
+          $ref: "#/definitions/PurchaseItem"
+  PurchaseItem:
+    type: object
+    properties:
+      supplierItemCode:
+        type: string
+        format: string
+        description: 'Item code'
+      supplierItemName:
+        type: string
+        format: string
+        description: 'Item name'
+      qty:
+        type: number
+        format: float
+        description: 'Item quantity'
+      pkg:
+        type: number
+        format: float
+        description: 'Item package quantity'
+      unitPrice:
+        type: number
+        format: double
+        description: 'Item unit price'
+      discountRate:
+        type: number
+        format: float
+        description: 'Discount rate in percent'
+      discountAmount:
+        type: number
+        format: float
+        description: 'Discount amount'
+      taxAmount:
+        type: number
+        format: double
+        description: 'Tax amount'
+      taxableAmount:
+        type: number
+        format: double
+        description: 'Taxable amount'
+      amount:
+        type: number
+        format: double
+        description: 'Tax amount'
+      supplierItemClassCode:
+        type: string
+        format: string
+        description: 'Item Class code'
+      taxCode:
+        type: string
+        format: string
+        description: 'Item tax group'     
+  PurchaseQueryReq:
+    type: object
+    required:
+      - supplierInvoiceNo
+      - supplierInvoiceTin
+      - purchaseItems
+    properties:
+      supplierInvoiceNo:
+        type: number
+        format: long
+        description: "Supplier's invoice number"
+      supplierInvoiceTin:
+        type: string
+        format: string
+        description: "Supplier's invoice TIN"
+      purchaseItems:
+        type: array
+        items:
+          $ref: "#/definitions/PurchaseItemReq"
+  PurchaseItemReq:
+    type: object
+    properties:
+      supplierItemCode:
+        type: string
+        format: string
+        description: 'Supplier Item code'
+      itemCode:
+        type: string
+        format: string
+        description: 'Item code'

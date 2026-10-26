@@ -1,0 +1,28 @@
+
+TAX CODE CHANGE JSON 
+
+{
+    "traderInvoiceNo": "1290",
+    "totalAmount": 193.84,
+    "paymentType": "01",
+    "salesTypeCode": "N",
+    "receiptTypeCode": "S",
+    "salesStatusCode": "01",
+    "salesDate": "20240509050115",
+    "currency": "KES",
+    "exchangeRate": 1,
+    "salesItems": [
+        {
+            "itemCode": "KE1UCT0000001",
+            "taxCode": "D",
+            "qty": 1,
+            "pkg": 0,
+            "unitPrice": 193.84,
+            "amount": 193.84,
+            "discountAmount": 0
+        }
+    ],
+    "customerName": "XXX"
+}
+
+

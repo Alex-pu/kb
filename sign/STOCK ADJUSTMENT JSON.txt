@@ -1,0 +1,8 @@
+}
+PAYLOAD FOR REDUCING AND ADDIN STOCK
+Method: PUT
+http://46.137.15.155/api/v1/items/KE2UCT0000072/stocks
+JSON :
+ {
+    "stock": 18
+}

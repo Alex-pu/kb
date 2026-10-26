@@ -1,0 +1,25 @@
+{
+  "traderInvoiceNo": "string",
+  "traderOrgInvoiceNo": "string",
+  "totalAmount": 0,
+  "paymentType": "01",
+  "salesTypeCode": "C",
+  "receiptTypeCode": "R",
+  "salesStatusCode": "01",
+  "salesDate": "20240509050115",
+  "currency": "string",
+  "exchangeRate": 0,
+  "salesItems": [
+    {
+      "itemCode": "string",
+      "qty": 0,
+      "pkg": 0,
+      "unitPrice": 0,
+      "amount": 0,
+      "discountAmount": 0,
+      "insuranceCompanyCode": "string"
+    }
+  ],
+  "customerPin": "string",
+  "customerName": "string"
+}
