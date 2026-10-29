@@ -41,6 +41,7 @@ export default function CatalogPage() {
   const [digitaxItemsNext, setDigitaxItemsNext] = useState<string | null>(null);
   const [digitaxItemsLoaded, setDigitaxItemsLoaded] = useState(false);
   const [digitaxItemsLoading, setDigitaxItemsLoading] = useState(false);
+  const [digitaxSyncing, setDigitaxSyncing] = useState(false);
   const [autoMapping, setAutoMapping] = useState(false);
   const [digitaxItemsMessage, setDigitaxItemsMessage] = useState<string | null>(null);
   const [digitaxItemQuery, setDigitaxItemQuery] = useState("");
@@ -155,6 +156,34 @@ export default function CatalogPage() {
     }
   }
 
+  async function syncDigitaxCatalog() {
+    if (!activeOutlet || digitaxSyncing) return;
+    setDigitaxSyncing(true);
+    setDigitaxItemsMessage(null);
+    try {
+      const response = await fetch("/api/integrations/digitax-items/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ outlet_id: activeOutlet.id }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        setDigitaxItemsMessage(result.message || "Could not sync DigiTax products.");
+        return;
+      }
+      setDigitaxItemsMessage(result.message);
+      setDigitaxItemsLoaded(false);
+      setDigitaxItems([]);
+      setDigitaxItemsNext(null);
+      await loadCatalog();
+    } catch {
+      setDigitaxItemsMessage("Could not reach the server to sync DigiTax products.");
+    } finally {
+      setDigitaxSyncing(false);
+    }
+  }
+
   async function autoMapExactBarcodes() {
     if (!activeOutlet || autoMapping) return;
     setAutoMapping(true);
@@ -265,6 +294,18 @@ export default function CatalogPage() {
           <Search className="w-4 h-4 text-neutral-400" />
           <input aria-label="Search catalog" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search name, SKU or barcode" className="flex-1 bg-transparent outline-none text-xs font-mono" />
         </div>
+        {canManageCatalog && (
+          <section className="flex flex-wrap items-center justify-between gap-3 rounded border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
+            <div className="max-w-3xl">
+              <h2 className="text-sm font-semibold">Sync DigiTax products</h2>
+              <p className="mt-1 text-[10px] text-neutral-500">Manually imports active, completed DigiTax finished products for this outlet. New products use DigiTax name and price, zero opening stock, and a generated KoreBench sale identifier if DigiTax has no barcode. Other item types and ambiguous barcode matches are skipped.</p>
+              {digitaxItemsMessage && <p role="status" className="mt-2 text-xs text-neutral-700 dark:text-neutral-300">{digitaxItemsMessage}</p>}
+            </div>
+            <button type="button" disabled={digitaxSyncing || !activeOutlet} onClick={() => void syncDigitaxCatalog()} className="rounded border border-emerald-700 px-3 py-2 text-xs font-semibold text-emerald-800 disabled:opacity-50 dark:text-emerald-300">
+              {digitaxSyncing ? "Syncing DigiTax products…" : "Sync DigiTax products to KoreBench"}
+            </button>
+          </section>
+        )}
         <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
@@ -331,7 +372,6 @@ export default function CatalogPage() {
                 </button>
                 {digitaxItemsLoaded && <span className="text-[10px] text-neutral-500">{digitaxItems.length} DigiTax items loaded</span>}
               </div>
-              {digitaxItemsMessage && <p role="alert" className="sm:col-span-2 text-xs text-red-700 dark:text-red-300">{digitaxItemsMessage}</p>}
               {digitaxItemsLoaded && (
                 <>
                   <label className="space-y-1 text-[10px] text-neutral-500 sm:col-span-2">Find a registered DigiTax item
