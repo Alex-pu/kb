@@ -6,6 +6,16 @@ import { useTenantStore } from "@/lib/store/tenant-store";
 import type { ProductCategory } from "@/lib/types/database";
 import { Plus, Search, X } from "lucide-react";
 
+interface DigiTaxCatalogItem {
+  id: string;
+  item_name: string;
+  item_bar_code?: string;
+  item_class_code: string | number;
+  tax_type_code: string;
+  active: boolean;
+  status?: string;
+}
+
 export default function CatalogPage() {
   const { catalog, activeProperty, activeOutlet, addCatalogItem, loadCatalog, hasPermission } = useTenantStore();
   const canManageCatalog = hasPermission("catalog:manage");
@@ -27,6 +37,22 @@ export default function CatalogPage() {
   const [saving, setSaving] = useState(false);
   const [mappingItemId, setMappingItemId] = useState<string | null>(null);
   const [mapping, setMapping] = useState({ etims_item_code: "", etims_tax_code: "", etims_item_class_code: "" });
+  const [digitaxItems, setDigitaxItems] = useState<DigiTaxCatalogItem[]>([]);
+  const [digitaxItemsNext, setDigitaxItemsNext] = useState<string | null>(null);
+  const [digitaxItemsLoaded, setDigitaxItemsLoaded] = useState(false);
+  const [digitaxItemsLoading, setDigitaxItemsLoading] = useState(false);
+  const [autoMapping, setAutoMapping] = useState(false);
+  const [digitaxItemsMessage, setDigitaxItemsMessage] = useState<string | null>(null);
+  const [digitaxItemQuery, setDigitaxItemQuery] = useState("");
+  const [selectedDigitaxItemId, setSelectedDigitaxItemId] = useState("");
+
+  React.useEffect(() => {
+    setDigitaxItems([]);
+    setDigitaxItemsNext(null);
+    setDigitaxItemsLoaded(false);
+    setDigitaxItemsMessage(null);
+    setSelectedDigitaxItemId("");
+  }, [activeOutlet?.id]);
 
   const visibleItems = catalog.filter((item) =>
     `${item.name} ${item.sku} ${item.barcode || ""}`.toLowerCase().includes(query.toLowerCase())
@@ -105,6 +131,121 @@ export default function CatalogPage() {
     }
   }
 
+  async function loadDigitaxItems(after?: string) {
+    if (!activeOutlet || digitaxItemsLoading) return;
+    setDigitaxItemsLoading(true);
+    setDigitaxItemsMessage(null);
+    try {
+      const params = new URLSearchParams({ outlet_id: activeOutlet.id });
+      if (after) params.set("after", after);
+      const response = await fetch(`/api/integrations/digitax-items?${params}`, { credentials: "include" });
+      const result = await response.json();
+      if (!response.ok || !result.success || !Array.isArray(result.items)) {
+        setDigitaxItemsMessage(result.message || "Could not load items from DigiTax.");
+        return;
+      }
+      const newItems = result.items as DigiTaxCatalogItem[];
+      setDigitaxItems((current) => after ? [...current, ...newItems] : newItems);
+      setDigitaxItemsNext(typeof result.next === "string" ? result.next : null);
+      setDigitaxItemsLoaded(true);
+    } catch {
+      setDigitaxItemsMessage("Could not reach DigiTax to load its registered items.");
+    } finally {
+      setDigitaxItemsLoading(false);
+    }
+  }
+
+  async function autoMapExactBarcodes() {
+    if (!activeOutlet || autoMapping) return;
+    setAutoMapping(true);
+    setDigitaxItemsMessage(null);
+    try {
+      const allItems: DigiTaxCatalogItem[] = [];
+      let after: string | undefined;
+      const seenCursors = new Set<string>();
+      for (let page = 0; page < 100; page += 1) {
+        const params = new URLSearchParams({ outlet_id: activeOutlet.id });
+        if (after) params.set("after", after);
+        const response = await fetch(`/api/integrations/digitax-items?${params}`, { credentials: "include" });
+        const result = await response.json();
+        if (!response.ok || !result.success || !Array.isArray(result.items)) {
+          throw new Error(result.message || "Could not load items from DigiTax.");
+        }
+        allItems.push(...result.items as DigiTaxCatalogItem[]);
+        if (typeof result.next !== "string" || !result.next) break;
+        if (seenCursors.has(result.next)) throw new Error("DigiTax returned a repeated item page. No mappings were changed.");
+        seenCursors.add(result.next);
+        after = result.next;
+        if (page === 99) throw new Error("More than 2,000 DigiTax items were found. No mappings were changed; use the item selector to map products in pages.");
+      }
+
+      const localCounts = new Map<string, number>();
+      for (const item of catalog) {
+        const barcode = item.item_type === "supply" ? "" : item.barcode?.trim().toUpperCase() ?? "";
+        if (barcode) localCounts.set(barcode, (localCounts.get(barcode) ?? 0) + 1);
+      }
+      const remoteByBarcode = new Map<string, DigiTaxCatalogItem[]>();
+      for (const item of allItems) {
+        const barcode = item.item_bar_code?.trim().toUpperCase() ?? "";
+        if (!barcode) continue;
+        const matches = remoteByBarcode.get(barcode) ?? [];
+        matches.push(item);
+        remoteByBarcode.set(barcode, matches);
+      }
+
+      const mappings = catalog.flatMap((item) => {
+        const barcode = item.item_type === "supply" ? "" : item.barcode?.trim().toUpperCase() ?? "";
+        const matches = remoteByBarcode.get(barcode) ?? [];
+        if (!barcode || localCounts.get(barcode) !== 1 || matches.length !== 1) return [];
+        const remote = matches[0];
+        if (!remote.active || (remote.status && remote.status.toUpperCase() !== "COMPLETE") ||
+            !/^[ABCDE]$/.test(remote.tax_type_code) || !remote.item_bar_code) return [];
+        return [{
+          item_id: item.id,
+          etims_item_code: remote.item_bar_code,
+          etims_tax_code: remote.tax_type_code,
+          etims_item_class_code: String(remote.item_class_code),
+        }];
+      });
+
+      setDigitaxItems(allItems);
+      setDigitaxItemsNext(null);
+      setDigitaxItemsLoaded(true);
+      if (!mappings.length) {
+        setDigitaxItemsMessage(`Loaded ${allItems.length} DigiTax items, but found no unique exact barcode matches. No mappings were changed.`);
+        return;
+      }
+      const response = await fetch("/api/pos/catalog/etims-bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ outlet_id: activeOutlet.id, mappings }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        setDigitaxItemsMessage(result.message || "Exact barcode matches could not be saved.");
+        return;
+      }
+      setDigitaxItemsMessage(`${result.message} ${catalog.filter((item) => item.item_type !== "supply").length - mappings.length} item(s) were not auto-mapped because they lacked a unique exact barcode match or were not ready in DigiTax.`);
+      await loadCatalog();
+    } catch (error) {
+      setDigitaxItemsMessage(error instanceof Error ? error.message : "Could not match DigiTax items.");
+    } finally {
+      setAutoMapping(false);
+    }
+  }
+
+  function applyDigitaxItem(itemId: string) {
+    setSelectedDigitaxItemId(itemId);
+    const item = digitaxItems.find((candidate) => candidate.id === itemId);
+    if (!item) return;
+    setMapping({
+      etims_item_code: item.item_bar_code ?? "",
+      etims_tax_code: item.tax_type_code,
+      etims_item_class_code: String(item.item_class_code),
+    });
+  }
+
   return (
     <DashboardShell>
       <div className="max-w-6xl mx-auto space-y-6">
@@ -159,6 +300,9 @@ export default function CatalogPage() {
                     {canManageCatalog && <td className="p-3">
                       {item.item_type === "supply" ? "—" : <button type="button" onClick={() => {
                         setMappingItemId(mappingItemId === item.id ? null : item.id);
+                        setDigitaxItemsMessage(null);
+                        setDigitaxItemQuery("");
+                        setSelectedDigitaxItemId("");
                         setMapping({
                           etims_item_code: item.etims_item_code ?? "",
                           etims_tax_code: item.etims_tax_code ?? "",
@@ -174,7 +318,43 @@ export default function CatalogPage() {
 
           {mappingItemId && canManageCatalog && (
             <form onSubmit={saveEtimsMapping} className="grid gap-3 rounded border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900 sm:grid-cols-2">
-              <div className="sm:col-span-2"><h2 className="text-sm font-semibold">DigiTax product mapping</h2><p className="text-[10px] text-neutral-500">Use the DigiTax item barcode, item class code, and tax type code. An item without all three mappings cannot be signed.</p></div>
+              <div className="sm:col-span-2">
+                <h2 className="text-sm font-semibold">DigiTax product mapping</h2>
+                <p className="text-[10px] text-neutral-500">Load items registered to the configured DigiTax business and select the matching product to copy its official barcode, class code, and tax type. Items are never matched automatically by name.</p>
+              </div>
+              <div className="sm:col-span-2 flex flex-wrap items-center gap-2">
+                <button type="button" disabled={digitaxItemsLoading || !activeOutlet} onClick={() => void loadDigitaxItems()} className="rounded border border-neutral-300 px-3 py-2 text-xs font-semibold disabled:opacity-50 dark:border-neutral-700">
+                  {digitaxItemsLoading ? "Loading DigiTax items…" : digitaxItemsLoaded ? "Refresh DigiTax items" : "Load DigiTax items"}
+                </button>
+                <button type="button" disabled={autoMapping || !activeOutlet} onClick={() => void autoMapExactBarcodes()} className="rounded border border-emerald-700 px-3 py-2 text-xs font-semibold text-emerald-800 disabled:opacity-50 dark:text-emerald-300">
+                  {autoMapping ? "Matching exact barcodes…" : "Auto-map exact barcode matches"}
+                </button>
+                {digitaxItemsLoaded && <span className="text-[10px] text-neutral-500">{digitaxItems.length} DigiTax items loaded</span>}
+              </div>
+              {digitaxItemsMessage && <p role="alert" className="sm:col-span-2 text-xs text-red-700 dark:text-red-300">{digitaxItemsMessage}</p>}
+              {digitaxItemsLoaded && (
+                <>
+                  <label className="space-y-1 text-[10px] text-neutral-500 sm:col-span-2">Find a registered DigiTax item
+                    <input value={digitaxItemQuery} onChange={(event) => setDigitaxItemQuery(event.target.value)} placeholder="Search DigiTax item name or barcode" className="block w-full rounded border border-neutral-300 bg-neutral-50 px-2 py-2 text-xs text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white" />
+                  </label>
+                  <label className="space-y-1 text-[10px] text-neutral-500 sm:col-span-2">Matching DigiTax item
+                    <select value={selectedDigitaxItemId} onChange={(event) => applyDigitaxItem(event.target.value)} className="block w-full rounded border border-neutral-300 bg-neutral-50 px-2 py-2 text-xs text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white">
+                      <option value="">Select the same product from DigiTax</option>
+                      {digitaxItems
+                        .filter((item) => `${item.item_name} ${item.item_bar_code ?? ""}`.toLowerCase().includes(digitaxItemQuery.toLowerCase()))
+                        .map((item) => {
+                          const ready = item.active && (!item.status || item.status.toUpperCase() === "COMPLETE") && Boolean(item.item_bar_code);
+                          return <option key={item.id} value={item.id} disabled={!ready}>
+                            {item.item_name} • {item.item_bar_code || "no barcode"} • tax {item.tax_type_code} • {item.status ?? (item.active ? "ACTIVE" : "INACTIVE")}
+                            {!ready ? " (not ready for sale mapping)" : ""}
+                          </option>;
+                        })}
+                    </select>
+                    <span className="block">Only active items with a barcode and completed sync (when status is provided) can be selected.</span>
+                  </label>
+                  {digitaxItemsNext && <div className="sm:col-span-2"><button type="button" disabled={digitaxItemsLoading} onClick={() => void loadDigitaxItems(digitaxItemsNext)} className="rounded border border-neutral-300 px-3 py-2 text-xs disabled:opacity-50 dark:border-neutral-700">{digitaxItemsLoading ? "Loading…" : "Load more DigiTax items"}</button></div>}
+                </>
+              )}
               {([
                 ["etims_item_code", "DigiTax item barcode"],
                 ["etims_tax_code", "DigiTax tax type code"],
