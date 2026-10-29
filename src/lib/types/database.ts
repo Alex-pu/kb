@@ -133,6 +133,10 @@ export interface CatalogItem {
   etims_item_code?: string | null;
   etims_tax_code?: string | null;
   etims_item_class_code?: string | null;
+  digitax_item_id?: string | null;
+  digitax_item_type_code?: string | null;
+  digitax_sync_status?: "not_synced" | "sending" | "pending" | "synced" | "failed" | "not_configured";
+  digitax_sync_error?: string | null;
   stock_by_warehouse?: {
     kitchen: number;
     bar: number;

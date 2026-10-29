@@ -11,9 +11,15 @@ interface DigitaxItem {
   etims_item_code?: string;
   item_bar_code?: string;
   item_class_code: string | number;
+  item_type_code?: string | number;
+  origin_nation_code?: string;
+  package_unit_code?: string;
+  quantity_unit_code?: string;
   tax_type_code: string;
+  default_unit_price?: number;
   active: boolean;
   status?: string;
+  levies: string[];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -107,18 +113,32 @@ export async function GET(request: Request) {
       if (!isRecord(rawItem) || typeof rawItem.id !== "string" ||
           typeof rawItem.item_name !== "string" ||
           (typeof rawItem.item_class_code !== "string" && typeof rawItem.item_class_code !== "number") ||
-          typeof rawItem.tax_type_code !== "string" || typeof rawItem.active !== "boolean") {
+          (typeof rawItem.item_type_code !== "string" && typeof rawItem.item_type_code !== "number") ||
+          typeof rawItem.origin_nation_code !== "string" ||
+          typeof rawItem.package_unit_code !== "string" ||
+          typeof rawItem.quantity_unit_code !== "string" ||
+          typeof rawItem.tax_type_code !== "string" ||
+          typeof rawItem.default_unit_price !== "number" ||
+          typeof rawItem.active !== "boolean") {
         return NextResponse.json({ success: false, message: "DigiTax returned an item with missing mapping details." }, { status: 502 });
       }
       items.push({
         id: rawItem.id,
         item_name: rawItem.item_name,
         item_class_code: rawItem.item_class_code,
+        item_type_code: rawItem.item_type_code,
+        origin_nation_code: rawItem.origin_nation_code,
+        package_unit_code: rawItem.package_unit_code,
+        quantity_unit_code: rawItem.quantity_unit_code,
         tax_type_code: rawItem.tax_type_code,
+        default_unit_price: rawItem.default_unit_price,
         active: rawItem.active,
         ...(typeof rawItem.etims_item_code === "string" ? { etims_item_code: rawItem.etims_item_code } : {}),
         ...(typeof rawItem.item_bar_code === "string" ? { item_bar_code: rawItem.item_bar_code } : {}),
         ...(typeof rawItem.status === "string" ? { status: rawItem.status } : {}),
+        levies: Array.isArray(rawItem.levies)
+          ? rawItem.levies.filter((levy): levy is string => typeof levy === "string")
+          : [],
       });
     }
 

@@ -28,6 +28,12 @@ SQL schema files live in `db/migrations/*.sql`, applied in filename order and tr
 npm run db:migrate
 ```
 
+### DigiTax catalog registration
+
+Apply migrations before deploying code that adds or changes database-backed features. Migration `032_digitax_catalog_registration.sql` stores each catalog item's DigiTax profile, registration ID, and sync status.
+
+In the app, enable DigiTax and save the sandbox API key in Property Settings. Add sale items in **Catalog** using an active, completed DigiTax profile: finished products require stock tracking, while services are non-stock items. KoreBench assigns the SKU as the barcode and registers the item with DigiTax. Check the per-item sync status; use **Sync KoreBench items to DigiTax** or the item's retry action if registration is pending or failed. The reverse **Import items from DigiTax** flow remains available for products already registered there and requires a barcode for safe matching.
+
 ## 3. Bootstrap your real company
 
 There is no seed/demo data. Run the interactive bootstrap script once against your empty database to create your actual company, property, outlet, till station, roles, and admin (and optionally cashier) login:

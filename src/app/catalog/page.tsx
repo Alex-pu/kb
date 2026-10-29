@@ -11,9 +11,19 @@ interface DigiTaxCatalogItem {
   item_name: string;
   item_bar_code?: string;
   item_class_code: string | number;
+  item_type_code?: string | number;
+  origin_nation_code?: string;
+  package_unit_code?: string;
+  quantity_unit_code?: string;
   tax_type_code: string;
+  default_unit_price?: number;
   active: boolean;
   status?: string;
+  levies?: string[];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export default function CatalogPage() {
@@ -36,28 +46,47 @@ export default function CatalogPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [mappingItemId, setMappingItemId] = useState<string | null>(null);
-  const [mapping, setMapping] = useState({ etims_item_code: "", etims_tax_code: "", etims_item_class_code: "" });
+  const [mapping, setMapping] = useState({
+    etims_item_code: "",
+    etims_tax_code: "",
+    etims_item_class_code: "",
+    digitax_item_id: "",
+    digitax_item_type_code: "",
+    etims_origin_nation_code: "",
+    etims_qty_unit_code: "",
+    etims_pkg_unit_code: "",
+    digitax_levies: [] as string[],
+  });
   const [digitaxItems, setDigitaxItems] = useState<DigiTaxCatalogItem[]>([]);
   const [digitaxItemsNext, setDigitaxItemsNext] = useState<string | null>(null);
   const [digitaxItemsLoaded, setDigitaxItemsLoaded] = useState(false);
   const [digitaxItemsLoading, setDigitaxItemsLoading] = useState(false);
   const [digitaxSyncing, setDigitaxSyncing] = useState(false);
+  const [digitaxPushing, setDigitaxPushing] = useState(false);
   const [autoMapping, setAutoMapping] = useState(false);
   const [digitaxItemsMessage, setDigitaxItemsMessage] = useState<string | null>(null);
+  const [digitaxImportSkips, setDigitaxImportSkips] = useState<Array<{ id: string; name: string; reason: string }>>([]);
+  const [digitaxPushResults, setDigitaxPushResults] = useState<Array<{ item_name: string; status: string; message: string }>>([]);
   const [digitaxItemQuery, setDigitaxItemQuery] = useState("");
   const [selectedDigitaxItemId, setSelectedDigitaxItemId] = useState("");
+  const [selectedDigitaxTemplateId, setSelectedDigitaxTemplateId] = useState("");
 
   React.useEffect(() => {
     setDigitaxItems([]);
     setDigitaxItemsNext(null);
     setDigitaxItemsLoaded(false);
     setDigitaxItemsMessage(null);
+    setDigitaxImportSkips([]);
+    setDigitaxPushResults([]);
     setSelectedDigitaxItemId("");
+    setSelectedDigitaxTemplateId("");
   }, [activeOutlet?.id]);
 
   const visibleItems = catalog.filter((item) =>
     `${item.name} ${item.sku} ${item.barcode || ""}`.toLowerCase().includes(query.toLowerCase())
   );
+  const selectedTemplate = digitaxItems.find((item) => item.id === selectedDigitaxTemplateId);
+  const mappingItem = catalog.find((item) => item.id === mappingItemId);
 
   function changeItemType(nextType: "retail" | "supply") {
     setItemType(nextType);
@@ -88,6 +117,7 @@ export default function CatalogPage() {
         reorder_level: canManageInventory && (itemType === "supply" || stockTracked) ? Number(reorderLevel) : 0,
         stock_tracked: itemType === "supply" || stockTracked,
         prep_station: prepStation,
+        digitax_template_id: itemType === "retail" ? selectedDigitaxTemplateId : "",
       });
       setMessage(result.message);
       if (!result.success) return;
@@ -101,6 +131,7 @@ export default function CatalogPage() {
       setReorderLevel("0");
       setStockTracked(true);
       setPrepStation("kitchen");
+      setSelectedDigitaxTemplateId("");
     } finally {
       setSaving(false);
     }
@@ -110,6 +141,10 @@ export default function CatalogPage() {
     event.preventDefault();
     const item = catalog.find((candidate) => candidate.id === mappingItemId);
     if (!item || !activeOutlet) return;
+    if (!mapping.digitax_item_id) {
+      setDigitaxItemsMessage("Select the exact registered DigiTax item before saving this mapping.");
+      return;
+    }
     setSaving(true);
     setMessage(null);
     try {
@@ -160,6 +195,8 @@ export default function CatalogPage() {
     if (!activeOutlet || digitaxSyncing) return;
     setDigitaxSyncing(true);
     setDigitaxItemsMessage(null);
+    setDigitaxImportSkips([]);
+    setDigitaxPushResults([]);
     try {
       const response = await fetch("/api/integrations/digitax-items/sync", {
         method: "POST",
@@ -173,6 +210,16 @@ export default function CatalogPage() {
         return;
       }
       setDigitaxItemsMessage(result.message);
+      const skippedItems: Array<{ id: string; name: string; reason: string }> = [];
+      if (Array.isArray(result.skipped_items)) {
+        for (const item of result.skipped_items as unknown[]) {
+          if (isRecord(item) && typeof item.id === "string" &&
+              typeof item.name === "string" && typeof item.reason === "string") {
+            skippedItems.push({ id: item.id, name: item.name, reason: item.reason });
+          }
+        }
+      }
+      setDigitaxImportSkips(skippedItems);
       setDigitaxItemsLoaded(false);
       setDigitaxItems([]);
       setDigitaxItemsNext(null);
@@ -181,6 +228,43 @@ export default function CatalogPage() {
       setDigitaxItemsMessage("Could not reach the server to sync DigiTax products.");
     } finally {
       setDigitaxSyncing(false);
+    }
+  }
+
+  async function pushCatalogToDigitax(itemId?: string) {
+    if (!activeOutlet || digitaxPushing) return;
+    setDigitaxPushing(true);
+    setDigitaxItemsMessage(null);
+    setDigitaxImportSkips([]);
+    setDigitaxPushResults([]);
+    try {
+      const response = await fetch("/api/integrations/digitax-items/push", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ outlet_id: activeOutlet.id, ...(itemId ? { item_id: itemId } : {}) }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        setDigitaxItemsMessage(result.message || "Could not register catalog products with DigiTax.");
+        return;
+      }
+      setDigitaxItemsMessage(result.message);
+      const pushResults: Array<{ item_name: string; status: string; message: string }> = [];
+      if (Array.isArray(result.results)) {
+        for (const item of result.results as unknown[]) {
+          if (isRecord(item) && typeof item.item_name === "string" &&
+              typeof item.status === "string" && typeof item.message === "string") {
+            pushResults.push({ item_name: item.item_name, status: item.status, message: item.message });
+          }
+        }
+      }
+      setDigitaxPushResults(pushResults);
+      await loadCatalog();
+    } catch {
+      setDigitaxItemsMessage("Could not reach the server to register catalog products with DigiTax.");
+    } finally {
+      setDigitaxPushing(false);
     }
   }
 
@@ -228,12 +312,22 @@ export default function CatalogPage() {
         if (!barcode || localCounts.get(barcode) !== 1 || matches.length !== 1) return [];
         const remote = matches[0];
         if (!remote.active || (remote.status && remote.status.toUpperCase() !== "COMPLETE") ||
-            !/^[ABCDE]$/.test(remote.tax_type_code) || !remote.item_bar_code) return [];
+            !["2", "3"].includes(String(remote.item_type_code)) ||
+            (String(remote.item_type_code) === "2" && !item.stock_tracked) ||
+            (String(remote.item_type_code) === "3" && item.stock_tracked) ||
+            !/^[ABCDE]$/.test(remote.tax_type_code) || !remote.item_bar_code ||
+            !remote.item_type_code || !remote.origin_nation_code ||
+            !remote.quantity_unit_code || !remote.package_unit_code) return [];
         return [{
           item_id: item.id,
           etims_item_code: remote.item_bar_code,
           etims_tax_code: remote.tax_type_code,
           etims_item_class_code: String(remote.item_class_code),
+          digitax_item_type_code: String(remote.item_type_code),
+          etims_origin_nation_code: remote.origin_nation_code,
+          etims_qty_unit_code: remote.quantity_unit_code,
+          etims_pkg_unit_code: remote.package_unit_code,
+          digitax_levies: remote.levies ?? [],
         }];
       });
 
@@ -255,7 +349,7 @@ export default function CatalogPage() {
         setDigitaxItemsMessage(result.message || "Exact barcode matches could not be saved.");
         return;
       }
-      setDigitaxItemsMessage(`${result.message} ${catalog.filter((item) => item.item_type !== "supply").length - mappings.length} item(s) were not auto-mapped because they lacked a unique exact barcode match or were not ready in DigiTax.`);
+      setDigitaxItemsMessage(`${result.message} ${catalog.filter((item) => item.item_type !== "supply").length - mappings.length} item(s) were not auto-mapped because they lacked a unique exact barcode match, were not ready in DigiTax, or had incompatible stock tracking.`);
       await loadCatalog();
     } catch (error) {
       setDigitaxItemsMessage(error instanceof Error ? error.message : "Could not match DigiTax items.");
@@ -272,6 +366,12 @@ export default function CatalogPage() {
       etims_item_code: item.item_bar_code ?? "",
       etims_tax_code: item.tax_type_code,
       etims_item_class_code: String(item.item_class_code),
+      digitax_item_id: item.id,
+      digitax_item_type_code: String(item.item_type_code ?? ""),
+      etims_origin_nation_code: item.origin_nation_code ?? "",
+      etims_qty_unit_code: item.quantity_unit_code ?? "",
+      etims_pkg_unit_code: item.package_unit_code ?? "",
+      digitax_levies: item.levies ?? [],
     });
   }
 
@@ -284,7 +384,10 @@ export default function CatalogPage() {
             <p className="text-xs text-neutral-500 font-mono mt-0.5">Property Settings • {activeProperty?.name} • Catalog, warehouse routing and stock</p>
           </div>
           {canManageCatalog && (
-            <button onClick={() => setShowForm(true)} className="flex items-center gap-2 px-3 py-1.5 bg-black text-white dark:bg-white dark:text-black text-xs font-semibold rounded">
+            <button onClick={() => {
+              setShowForm(true);
+              if (!digitaxItemsLoaded && activeOutlet) void loadDigitaxItems();
+            }} className="flex items-center gap-2 px-3 py-1.5 bg-black text-white dark:bg-white dark:text-black text-xs font-semibold rounded">
               <Plus className="w-3.5 h-3.5" /> Add item
             </button>
           )}
@@ -297,13 +400,20 @@ export default function CatalogPage() {
         {canManageCatalog && (
           <section className="flex flex-wrap items-center justify-between gap-3 rounded border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
             <div className="max-w-3xl">
-              <h2 className="text-sm font-semibold">Sync DigiTax products</h2>
-              <p className="mt-1 text-[10px] text-neutral-500">Manually imports active, completed DigiTax finished products for this outlet. New products use DigiTax name and price, zero opening stock, and a generated KoreBench sale identifier if DigiTax has no barcode. Other item types and ambiguous barcode matches are skipped.</p>
+              <h2 className="text-sm font-semibold">DigiTax catalog sync</h2>
+              <p className="mt-1 text-[10px] text-neutral-500">New sale items are created in KoreBench using a registered DigiTax profile, then registered with DigiTax using their KoreBench SKU as the barcode. Import remains available for items already created in DigiTax.</p>
               {digitaxItemsMessage && <p role="status" className="mt-2 text-xs text-neutral-700 dark:text-neutral-300">{digitaxItemsMessage}</p>}
+              {digitaxPushResults.length > 0 && <ul className="mt-2 space-y-1 text-[10px] text-neutral-600 dark:text-neutral-400">{digitaxPushResults.map((item, index) => <li key={`${item.item_name}-${index}`}><strong>{item.item_name}:</strong> {item.message}</li>)}</ul>}
+              {digitaxImportSkips.length > 0 && <div className="mt-2 max-h-32 space-y-1 overflow-y-auto text-[10px] text-neutral-600 dark:text-neutral-400"><p className="font-semibold">Skipped DigiTax items (up to 50 shown):</p>{digitaxImportSkips.map((item) => <p key={item.id}><strong>{item.name}:</strong> {item.reason}</p>)}</div>}
             </div>
-            <button type="button" disabled={digitaxSyncing || !activeOutlet} onClick={() => void syncDigitaxCatalog()} className="rounded border border-emerald-700 px-3 py-2 text-xs font-semibold text-emerald-800 disabled:opacity-50 dark:text-emerald-300">
-              {digitaxSyncing ? "Syncing DigiTax products…" : "Sync DigiTax products to KoreBench"}
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" disabled={digitaxPushing || !activeOutlet} onClick={() => void pushCatalogToDigitax()} className="rounded border border-emerald-700 px-3 py-2 text-xs font-semibold text-emerald-800 disabled:opacity-50 dark:text-emerald-300">
+                {digitaxPushing ? "Registering items…" : "Sync KoreBench items to DigiTax"}
+              </button>
+              <button type="button" disabled={digitaxSyncing || !activeOutlet} onClick={() => void syncDigitaxCatalog()} className="rounded border border-neutral-300 px-3 py-2 text-xs font-semibold disabled:opacity-50 dark:border-neutral-700">
+                {digitaxSyncing ? "Importing items…" : "Import items from DigiTax"}
+              </button>
+            </div>
           </section>
         )}
         <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded overflow-hidden">
@@ -339,17 +449,30 @@ export default function CatalogPage() {
                     )}
                     <td className="p-3"><span className="text-emerald-600 text-[10px] font-mono">{item.is_active ? "ACTIVE" : "INACTIVE"}</span></td>
                     {canManageCatalog && <td className="p-3">
-                      {item.item_type === "supply" ? "—" : <button type="button" onClick={() => {
-                        setMappingItemId(mappingItemId === item.id ? null : item.id);
-                        setDigitaxItemsMessage(null);
-                        setDigitaxItemQuery("");
-                        setSelectedDigitaxItemId("");
-                        setMapping({
-                          etims_item_code: item.etims_item_code ?? "",
-                          etims_tax_code: item.etims_tax_code ?? "",
-                          etims_item_class_code: item.etims_item_class_code ?? "",
-                        });
-                      }} className="text-[10px] font-semibold underline">{item.etims_item_code && item.etims_tax_code ? "Edit mapping" : "Map item"}</button>}
+                      {item.item_type === "supply" ? "—" : <div className="space-y-1">
+                        <div className={`text-[10px] font-semibold ${item.digitax_sync_status === "synced" ? "text-emerald-600" : item.digitax_sync_status === "failed" ? "text-red-600" : "text-amber-600"}`}>
+                          {item.digitax_sync_status === "synced" ? "SYNCED" : item.digitax_sync_status === "pending" || item.digitax_sync_status === "sending" ? "PENDING" : item.digitax_sync_status === "failed" ? "FAILED" : "NOT SYNCED"}
+                        </div>
+                        {item.digitax_sync_error && <div className="max-w-48 text-[10px] text-red-600" title={item.digitax_sync_error}>{item.digitax_sync_error}</div>}
+                        {item.digitax_item_type_code && item.digitax_sync_status !== "synced" && <button type="button" disabled={digitaxPushing} onClick={() => void pushCatalogToDigitax(item.id)} className="text-[10px] font-semibold underline disabled:opacity-50">{item.digitax_sync_status === "failed" ? "Retry DigiTax sync" : "Sync to DigiTax"}</button>}
+                        <button type="button" onClick={() => {
+                          setMappingItemId(mappingItemId === item.id ? null : item.id);
+                          setDigitaxItemsMessage(null);
+                          setDigitaxItemQuery("");
+                          setSelectedDigitaxItemId(item.digitax_item_id ?? "");
+                          setMapping({
+                            etims_item_code: item.etims_item_code ?? "",
+                            etims_tax_code: item.etims_tax_code ?? "",
+                            etims_item_class_code: item.etims_item_class_code ?? "",
+                            digitax_item_id: item.digitax_item_id ?? "",
+                            digitax_item_type_code: "",
+                            etims_origin_nation_code: "",
+                            etims_qty_unit_code: "",
+                            etims_pkg_unit_code: "",
+                            digitax_levies: [],
+                          });
+                        }} className="block text-[10px] font-semibold underline">{item.etims_item_code && item.etims_tax_code ? "Edit mapping" : "Map item"}</button>
+                      </div>}
                     </td>}
                   </tr>
                 ))}
@@ -361,7 +484,7 @@ export default function CatalogPage() {
             <form onSubmit={saveEtimsMapping} className="grid gap-3 rounded border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900 sm:grid-cols-2">
               <div className="sm:col-span-2">
                 <h2 className="text-sm font-semibold">DigiTax product mapping</h2>
-                <p className="text-[10px] text-neutral-500">Load items registered to the configured DigiTax business and select the matching product to copy its official barcode, class code, and tax type. Items are never matched automatically by name.</p>
+                <p className="text-[10px] text-neutral-500">Select the exact registered item to copy its DigiTax ID, barcode, item type, class, tax, country, units, and levies. Items are never matched automatically by name.</p>
               </div>
               <div className="sm:col-span-2 flex flex-wrap items-center gap-2">
                 <button type="button" disabled={digitaxItemsLoading || !activeOutlet} onClick={() => void loadDigitaxItems()} className="rounded border border-neutral-300 px-3 py-2 text-xs font-semibold disabled:opacity-50 dark:border-neutral-700">
@@ -383,24 +506,26 @@ export default function CatalogPage() {
                       {digitaxItems
                         .filter((item) => `${item.item_name} ${item.item_bar_code ?? ""}`.toLowerCase().includes(digitaxItemQuery.toLowerCase()))
                         .map((item) => {
-                          const ready = item.active && (!item.status || item.status.toUpperCase() === "COMPLETE") && Boolean(item.item_bar_code);
-                          return <option key={item.id} value={item.id} disabled={!ready}>
+                          const matchesStockType = !mappingItem ||
+                            (String(item.item_type_code) === "2" && mappingItem.stock_tracked) ||
+                            (String(item.item_type_code) === "3" && !mappingItem.stock_tracked);
+                          const ready = item.active && (!item.status || item.status.toUpperCase() === "COMPLETE") &&
+                            ["2", "3"].includes(String(item.item_type_code)) && Boolean(item.item_bar_code);
+                          const selectable = ready && matchesStockType;
+                          return <option key={item.id} value={item.id} disabled={!selectable}>
                             {item.item_name} • {item.item_bar_code || "no barcode"} • tax {item.tax_type_code} • {item.status ?? (item.active ? "ACTIVE" : "INACTIVE")}
-                            {!ready ? " (not ready for sale mapping)" : ""}
+                            {!ready ? " (not ready for sale mapping)" : !matchesStockType ? " (stock tracking does not match)" : ""}
                           </option>;
                         })}
                     </select>
-                    <span className="block">Only active items with a barcode and completed sync (when status is provided) can be selected.</span>
+                    <span className="block">For existing catalog mappings, select an active, completed DigiTax item with a barcode. New catalog items can use a profile without a barcode; KoreBench registers their SKU as the barcode.</span>
                   </label>
                   {digitaxItemsNext && <div className="sm:col-span-2"><button type="button" disabled={digitaxItemsLoading} onClick={() => void loadDigitaxItems(digitaxItemsNext)} className="rounded border border-neutral-300 px-3 py-2 text-xs disabled:opacity-50 dark:border-neutral-700">{digitaxItemsLoading ? "Loading…" : "Load more DigiTax items"}</button></div>}
                 </>
               )}
-              {([
-                ["etims_item_code", "DigiTax item barcode"],
-                ["etims_tax_code", "DigiTax tax type code"],
-                ["etims_item_class_code", "DigiTax item class code"],
-              ] as const).map(([key, label]) => <label key={key} className="space-y-1 text-[10px] text-neutral-500">{label}{key === "etims_tax_code" ? <select value={mapping[key]} onChange={(event) => setMapping({ ...mapping, [key]: event.target.value })} className="block w-full rounded border border-neutral-300 bg-neutral-50 px-2 py-2 text-xs text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white"><option value="">Select tax code</option>{["A", "B", "C", "D", "E"].map((code) => <option key={code} value={code}>{code}</option>)}</select> : <input value={mapping[key]} onChange={(event) => setMapping({ ...mapping, [key]: event.target.value })} maxLength={key === "etims_item_code" ? 80 : key === "etims_item_class_code" ? 40 : 20} className="block w-full rounded border border-neutral-300 bg-neutral-50 px-2 py-2 text-xs text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white" />}</label>)}
-              <div className="sm:col-span-2 flex gap-2"><button disabled={saving} className="rounded bg-black px-3 py-2 text-xs font-semibold text-white disabled:opacity-50 dark:bg-white dark:text-black">{saving ? "Saving…" : "Save mapping"}</button><button type="button" onClick={() => setMappingItemId(null)} className="rounded border px-3 py-2 text-xs">Cancel</button></div>
+              {mapping.digitax_item_id && <div className="sm:col-span-2 text-[10px] text-neutral-500">Official barcode: {mapping.etims_item_code || "—"} · tax: {mapping.etims_tax_code || "—"} · class: {mapping.etims_item_class_code || "—"} · quantity unit: {mapping.etims_qty_unit_code || "—"} · package unit: {mapping.etims_pkg_unit_code || "—"}</div>}
+              {digitaxItemsMessage && <p role="alert" className="sm:col-span-2 text-xs text-red-700 dark:text-red-300">{digitaxItemsMessage}</p>}
+              <div className="sm:col-span-2 flex gap-2"><button disabled={saving || !mapping.digitax_item_id} className="rounded bg-black px-3 py-2 text-xs font-semibold text-white disabled:opacity-50 dark:bg-white dark:text-black">{saving ? "Saving…" : "Save mapping"}</button><button type="button" onClick={() => setMappingItemId(null)} className="rounded border px-3 py-2 text-xs">Cancel</button></div>
             </form>
           )}
         </div>
@@ -415,21 +540,68 @@ export default function CatalogPage() {
               <p className="text-xs text-neutral-500">The catalog is shared across this property. Transfer stock to make a stocked item available at another outlet.</p>
               <p className="text-xs text-neutral-500">A unique SKU is generated automatically when the item is saved and cannot be changed.</p>
               <label className="block text-xs space-y-1">Item type<select value={itemType} onChange={(event) => changeItemType(event.target.value as "retail" | "supply")} className="w-full p-2 border rounded bg-neutral-50 dark:bg-neutral-800"><option value="retail">Sale item</option><option value="supply">Non-sale supply</option></select></label>
+              {itemType === "retail" && (
+                <div className="space-y-2">
+                  <label className="block text-xs space-y-1">DigiTax profile (required)
+                    <select required value={selectedDigitaxTemplateId} onChange={(event) => {
+                      const template = digitaxItems.find((candidate) => candidate.id === event.target.value);
+                      setSelectedDigitaxTemplateId(event.target.value);
+                      if (template?.quantity_unit_code) setUnit(template.quantity_unit_code);
+                      if (String(template?.item_type_code) === "3") {
+                        setStockTracked(false);
+                        setKitchenStock("0");
+                        setBarStock("0");
+                        setReorderLevel("0");
+                      } else if (template) {
+                        setStockTracked(true);
+                      }
+                    }} className="w-full p-2 border rounded bg-neutral-50 dark:bg-neutral-800">
+                      <option value="">Select a completed DigiTax product or service profile</option>
+                      {digitaxItems.filter((item) =>
+                        item.active && (!item.status || item.status.toUpperCase() === "COMPLETE") &&
+                        ["2", "3"].includes(String(item.item_type_code)) &&
+                        /^[ABCDE]$/.test(item.tax_type_code) &&
+                        Boolean(item.origin_nation_code && item.package_unit_code && item.quantity_unit_code),
+                      ).map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.item_name} · {String(item.item_type_code) === "3" ? "Service" : "Finished product"} · tax {item.tax_type_code} · class {item.item_class_code}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {!digitaxItemsLoaded && <button type="button" disabled={digitaxItemsLoading} onClick={() => void loadDigitaxItems()} className="rounded border border-neutral-300 px-2 py-1 text-[10px] disabled:opacity-50 dark:border-neutral-700">{digitaxItemsLoading ? "Loading DigiTax profiles…" : "Load DigiTax profiles"}</button>}
+                  {digitaxItemsLoaded && digitaxItemsNext && <button type="button" disabled={digitaxItemsLoading} onClick={() => void loadDigitaxItems(digitaxItemsNext)} className="rounded border border-neutral-300 px-2 py-1 text-[10px] disabled:opacity-50 dark:border-neutral-700">{digitaxItemsLoading ? "Loading…" : "Load more profiles"}</button>}
+                  {selectedTemplate && <p className="text-[10px] text-neutral-500">Using DigiTax class {selectedTemplate.item_class_code}, tax {selectedTemplate.tax_type_code}, quantity unit {selectedTemplate.quantity_unit_code}, package unit {selectedTemplate.package_unit_code}{selectedTemplate.levies?.length ? `, levies ${selectedTemplate.levies.join(", ")}` : ""}. KoreBench will register the generated SKU as the barcode.</p>}
+                  {digitaxItemsMessage && <p role="alert" className="text-xs text-red-700 dark:text-red-300">{digitaxItemsMessage}</p>}
+                  {!digitaxItems.length && digitaxItemsLoaded && <p className="text-[10px] text-amber-700">No eligible DigiTax profiles are available. Register and complete a product or service in DigiTax first, then load profiles again.</p>}
+                </div>
+              )}
               <label className="block text-xs space-y-1">Name<input required value={name} onChange={(event) => setName(event.target.value)} className="w-full p-2 border rounded bg-neutral-50 dark:bg-neutral-800" /></label>
               <div className="grid grid-cols-2 gap-2">
                 {itemType === "retail"
                   ? <label className="block text-xs space-y-1">Price<input required min="0" step="0.01" type="number" value={price} onChange={(event) => setPrice(event.target.value)} className="w-full p-2 border rounded bg-neutral-50 dark:bg-neutral-800" /></label>
                   : <p className="self-end pb-2 text-[10px] text-neutral-500">Not sold through POS</p>}
-                <label className="block text-xs space-y-1">Stock / sale unit<input required maxLength={40} value={unit} onChange={(event) => setUnit(event.target.value)} placeholder="crate, piece, kg" className="w-full p-2 border rounded bg-neutral-50 dark:bg-neutral-800" /></label>
+                <label className="block text-xs space-y-1">{itemType === "retail" ? "DigiTax quantity unit code" : "Stock unit"}<input required maxLength={40} value={itemType === "retail" ? selectedTemplate?.quantity_unit_code ?? "" : unit} readOnly={itemType === "retail"} onChange={(event) => setUnit(event.target.value)} placeholder={itemType === "retail" ? "Select a DigiTax profile first" : "crate, piece, kg"} className="w-full p-2 border rounded bg-neutral-50 read-only:opacity-70 dark:bg-neutral-800" /></label>
               </div>
               {itemType === "retail"
                 ? <label className="block text-xs space-y-1">Order destination<select value={prepStation} onChange={(event) => setPrepStation(event.target.value as "kitchen" | "bar")} className="w-full p-2 border rounded bg-neutral-50 dark:bg-neutral-800"><option value="kitchen">Kitchen</option><option value="bar">Bar</option></select></label>
                 : <p className="text-[10px] text-neutral-500">Supply stock is kept in a separate Supplies balance at each outlet.</p>}
-              <label className="flex items-center gap-2 text-xs">
-                <input type="checkbox" checked={itemType === "supply" || stockTracked} disabled={itemType === "supply"} onChange={(event) => setStockTracked(event.target.checked)} />
-                {itemType === "supply" ? "Track supply quantities" : "Track stock (disable for items sold without quantity limits)"}
-              </label>
-              {itemType === "retail" && stockTracked && canManageInventory && (
+              {itemType === "retail" && String(selectedTemplate?.item_type_code) === "3"
+                ? <p className="text-[10px] text-neutral-500">DigiTax services are non-stockable.</p>
+                : <label className="flex items-center gap-2 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={itemType === "supply" || stockTracked}
+                    disabled={itemType === "supply" || (itemType === "retail" && String(selectedTemplate?.item_type_code) === "2")}
+                    onChange={(event) => setStockTracked(event.target.checked)}
+                  />
+                  {itemType === "supply"
+                    ? "Track supply quantities"
+                    : String(selectedTemplate?.item_type_code) === "2"
+                      ? "Track stock (required for DigiTax finished products)"
+                      : "Track stock"}
+                </label>}
+              {itemType === "retail" && String(selectedTemplate?.item_type_code) !== "3" && stockTracked && canManageInventory && (
                 <div className="grid grid-cols-2 gap-2">
                   <label className="block text-xs space-y-1">Kitchen opening stock<input required min="0" step="0.001" type="number" value={kitchenStock} onChange={(event) => setKitchenStock(event.target.value)} className="w-full p-2 border rounded bg-neutral-50 dark:bg-neutral-800" /></label>
                   <label className="block text-xs space-y-1">Bar opening stock<input required min="0" step="0.001" type="number" value={barStock} onChange={(event) => setBarStock(event.target.value)} className="w-full p-2 border rounded bg-neutral-50 dark:bg-neutral-800" /></label>

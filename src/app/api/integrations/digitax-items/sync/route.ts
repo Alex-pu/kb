@@ -13,9 +13,12 @@ interface DigitaxItem {
   tax_type_code: string;
   default_unit_price: number;
   quantity_unit_code: string;
+  package_unit_code: string;
+  origin_nation_code: string;
   active: boolean;
   status?: string;
   item_bar_code?: string;
+  levies: string[];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -61,22 +64,29 @@ async function loadDigitaxItems(apiBaseUrl: string, apiKey: string): Promise<Dig
       if (!isRecord(raw) || typeof raw.id !== "string" || typeof raw.item_name !== "string" ||
           (typeof raw.item_class_code !== "string" && typeof raw.item_class_code !== "number") ||
           typeof raw.tax_type_code !== "string" || typeof raw.default_unit_price !== "number" ||
-          typeof raw.quantity_unit_code !== "string" || typeof raw.item_type_code !== "string" ||
+          typeof raw.quantity_unit_code !== "string" || typeof raw.package_unit_code !== "string" ||
+          typeof raw.origin_nation_code !== "string" ||
+          (typeof raw.item_type_code !== "string" && typeof raw.item_type_code !== "number") ||
           typeof raw.active !== "boolean") {
         throw new Error("DigiTax returned an item with incomplete product details.");
       }
       items.push({
         id: raw.id,
         item_name: raw.item_name,
-        item_type_code: raw.item_type_code,
+        item_type_code: String(raw.item_type_code),
         item_class_code: String(raw.item_class_code),
         tax_type_code: raw.tax_type_code,
         default_unit_price: raw.default_unit_price,
         quantity_unit_code: raw.quantity_unit_code,
+        package_unit_code: raw.package_unit_code,
+        origin_nation_code: raw.origin_nation_code,
         active: raw.active,
         ...(typeof raw.status === "string" ? { status: raw.status } : {}),
         ...(typeof raw.item_bar_code === "string" && raw.item_bar_code.trim()
           ? { item_bar_code: raw.item_bar_code.trim() } : {}),
+        levies: Array.isArray(raw.levies)
+          ? raw.levies.filter((levy): levy is string => typeof levy === "string")
+          : [],
       });
     }
     const pagination = isRecord(payload.pagination) ? payload.pagination : null;
@@ -137,6 +147,19 @@ export async function POST(request: Request) {
 
     const remoteItems = await loadDigitaxItems(config.api_base_url, apiKey);
     const result = await withUserContext(auth.userId, async (run) => {
+      const skippedByReason = {
+        inactive: 0,
+        syncing_or_failed: 0,
+        unsupported_type: 0,
+        invalid_details: 0,
+        missing_barcode: 0,
+        ambiguous_barcode: 0,
+      };
+      const skippedItems: Array<{ id: string; name: string; reason: string }> = [];
+      const skip = (item: DigitaxItem, key: keyof typeof skippedByReason, reason: string) => {
+        skippedByReason[key] += 1;
+        if (skippedItems.length < 50) skippedItems.push({ id: item.id, name: item.item_name, reason });
+      };
       const eligibleItems = remoteItems.filter((item) =>
         item.active && (!item.status || item.status.toUpperCase() === "COMPLETE") &&
         item.item_type_code === "2" &&
@@ -163,7 +186,7 @@ export async function POST(request: Request) {
         `SELECT i.id, i.barcode
          FROM items i
          JOIN item_outlets io ON io.item_id = i.id AND io.outlet_id = $2
-         WHERE i.property_id = $1 AND i.barcode IS NOT NULL`,
+         WHERE i.property_id = $1 AND i.item_type IN ('retail', 'menu') AND i.barcode IS NOT NULL`,
         [scope.propertyId, body.outlet_id],
       );
       const localByBarcode = new Map<string, string[]>();
@@ -182,22 +205,48 @@ export async function POST(request: Request) {
 
       let created = 0;
       let mapped = 0;
-      let skipped = remoteItems.length - eligibleItems.length;
-      for (const remote of eligibleItems) {
+      for (const remote of remoteItems) {
+        if (!remote.active) {
+          skip(remote, "inactive", "Inactive in DigiTax.");
+          continue;
+        }
+        if (remote.status && remote.status.toUpperCase() !== "COMPLETE") {
+          skip(remote, "syncing_or_failed", `DigiTax status is ${remote.status}.`);
+          continue;
+        }
+        if (remote.item_type_code !== "2") {
+          skip(remote, "unsupported_type", "Only finished products can be imported as sale items.");
+          continue;
+        }
+        if (!/^[ABCDE]$/.test(remote.tax_type_code) || !remote.item_class_code.trim() ||
+            !Number.isFinite(remote.default_unit_price) || remote.default_unit_price < 0 ||
+            !remote.item_name.trim() || remote.item_name.trim().length > 255) {
+          skip(remote, "invalid_details", "Tax, class, name, or price is invalid or missing.");
+          continue;
+        }
         const barcode = remote.item_bar_code?.trim() ?? "";
+        if (!barcode) {
+          skip(remote, "missing_barcode", "Add a unique barcode in DigiTax before importing this product.");
+          continue;
+        }
         const barcodeKey = barcode.toUpperCase();
         const matches = barcodeKey ? localByBarcode.get(barcodeKey) ?? [] : [];
         if (barcodeKey && (matches.length > 1 || remoteBarcodeCounts.get(barcodeKey) !== 1)) {
-          skipped += 1;
+          skip(remote, "ambiguous_barcode", "This barcode matches multiple local or DigiTax items.");
           continue;
         }
 
         if (matches.length === 1) {
           await run(
             `UPDATE items SET etims_item_code = $3, etims_tax_code = $4,
-               etims_item_class_code = $5, updated_at = NOW()
+               etims_item_class_code = $5, digitax_item_id = $6, digitax_sync_status = 'synced',
+               digitax_sync_error = NULL, digitax_item_type_code = $7,
+               etims_origin_nation_code = $8, etims_qty_unit_code = $9,
+               etims_pkg_unit_code = $10, digitax_levies = $11, updated_at = NOW()
              WHERE id = $1 AND property_id = $2`,
-            [matches[0], scope.propertyId, barcode, remote.tax_type_code, remote.item_class_code],
+            [matches[0], scope.propertyId, barcode, remote.tax_type_code, remote.item_class_code,
+              remote.id, remote.item_type_code, remote.origin_nation_code, remote.quantity_unit_code,
+              remote.package_unit_code, remote.levies],
           );
           mapped += 1;
           continue;
@@ -222,17 +271,20 @@ export async function POST(request: Request) {
         }
         if (!sku) throw new Error("A unique KoreBench SKU could not be allocated.");
 
-        const localBarcode = barcode || sku;
         const createdItem = await run<{ id: string }>(
           `INSERT INTO items
              (property_id, outlet_id, category_id, name, sku, barcode, item_type, price,
               stock_tracked, reorder_level, prep_station, unit, etims_item_code,
-              etims_tax_code, etims_item_class_code)
-           VALUES ($1, $2, $3, $4, $5, $6, 'retail', $7, TRUE, 0, 'kitchen', $8, $9, $10, $11)
+              etims_tax_code, etims_item_class_code, digitax_item_id, digitax_sync_status,
+              digitax_item_type_code, etims_origin_nation_code, etims_qty_unit_code,
+              etims_pkg_unit_code, digitax_levies)
+           VALUES ($1, $2, $3, $4, $5, $6, 'retail', $7, TRUE, 0, 'kitchen', $8, $9, $10, $11,
+              $12, 'synced', $13, $14, $15, $16, $17)
            RETURNING id`,
           [scope.propertyId, body.outlet_id, categoryId, remote.item_name.trim(), sku,
-            localBarcode, remote.default_unit_price, remote.quantity_unit_code.slice(0, 40) || "each",
-            localBarcode, remote.tax_type_code, remote.item_class_code],
+            barcode, remote.default_unit_price, remote.quantity_unit_code.slice(0, 40) || "each",
+            barcode, remote.tax_type_code, remote.item_class_code, remote.id, remote.item_type_code,
+            remote.origin_nation_code, remote.quantity_unit_code, remote.package_unit_code, remote.levies],
         );
         const itemId = createdItem.rows[0]?.id;
         if (!itemId) throw new Error("A DigiTax item could not be added to the catalog.");
@@ -250,17 +302,24 @@ export async function POST(request: Request) {
            ON CONFLICT (outlet_id, item_id, warehouse) DO NOTHING`,
           [scope.propertyId, body.outlet_id, itemId],
         );
-        localByBarcode.set(localBarcode.toUpperCase(), [itemId]);
+        localByBarcode.set(barcode.toUpperCase(), [itemId]);
         created += 1;
       }
-      return { created, mapped, skipped };
+      return {
+        created,
+        mapped,
+        skipped: Object.values(skippedByReason).reduce((sum, count) => sum + count, 0),
+        skipped_by_reason: skippedByReason,
+        skipped_items: skippedItems,
+        additional_skipped_items: Math.max(0, Object.values(skippedByReason).reduce((sum, count) => sum + count, 0) - skippedItems.length),
+      };
     });
 
     if ("error" in result) return NextResponse.json({ success: false, message: result.error }, { status: 400 });
     return NextResponse.json({
       success: true,
       ...result,
-      message: `DigiTax sync complete: ${result.created} new product(s) created, ${result.mapped} existing product(s) mapped, ${result.skipped} item(s) skipped because they were inactive, not fully synced, invalid, or ambiguous.`,
+      message: `DigiTax import complete: ${result.created} new product(s) added, ${result.mapped} exact barcode match(es) mapped. Skipped: ${result.skipped_by_reason.missing_barcode} without a DigiTax barcode, ${result.skipped_by_reason.syncing_or_failed} not fully synced, ${result.skipped_by_reason.unsupported_type} non-finished item(s), ${result.skipped_by_reason.ambiguous_barcode} ambiguous barcode(s), ${result.skipped_by_reason.invalid_details} invalid item(s), and ${result.skipped_by_reason.inactive} inactive item(s).${result.additional_skipped_items ? ` ${result.additional_skipped_items} more skip reason(s) were omitted from the item list.` : ""}`,
     });
   } catch (error) {
     console.error("Unable to sync DigiTax items into the catalog.", error);

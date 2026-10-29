@@ -17,6 +17,8 @@ interface MappingRow extends QueryResultRow {
   etims_item_code: string | null;
   etims_item_class_code: string | null;
   etims_tax_code: string | null;
+  digitax_sync_status: string;
+  digitax_item_type_code: string | null;
 }
 
 function saleDate(value: string): string {
@@ -63,7 +65,8 @@ export async function submitRestaurantBillToDigitax(
       .map((line) => line.item?.id)
       .filter((id): id is string => Boolean(id)))];
     const mappingsResult = itemIds.length ? await run<MappingRow>(
-      `SELECT id, name, etims_item_code, etims_item_class_code, etims_tax_code
+      `SELECT id, name, etims_item_code, etims_item_class_code, etims_tax_code,
+              digitax_sync_status, digitax_item_type_code
        FROM items WHERE property_id = $1 AND id = ANY($2::uuid[])`,
       [propertyId, itemIds],
     ) : { rows: [] as MappingRow[] };
@@ -91,6 +94,16 @@ export async function submitRestaurantBillToDigitax(
           },
         };
       }
+      if (mapping.digitax_sync_status !== "synced" ||
+          !["2", "3"].includes(mapping.digitax_item_type_code ?? "")) {
+        return {
+          kind: "result" as const,
+          result: {
+            status: "blocked" as const,
+            message: `${mapping.name} is not registered and fully synchronized with DigiTax. Sync the catalog item before issuing the eTIMS receipt.`,
+          },
+        };
+      }
       if (!Number.isFinite(quantity) || quantity <= 0 ||
           !Number.isFinite(unitPrice) || unitPrice < 0) {
         return { kind: "result" as const, result: { status: "blocked" as const, message: "Bill item details are incomplete; no sale was sent to DigiTax." } };
@@ -109,7 +122,7 @@ export async function submitRestaurantBillToDigitax(
         discount_rate: 0,
         discount_amount: 0,
         item_description: mapping.name,
-        is_stockable: false,
+        is_stockable: mapping.digitax_item_type_code === "2",
       });
     }
 

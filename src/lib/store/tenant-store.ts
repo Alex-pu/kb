@@ -416,6 +416,7 @@ interface TenantState {
     reorder_level: number;
     stock_tracked: boolean;
     prep_station: "kitchen" | "bar";
+    digitax_template_id: string;
   }) => Promise<{ success: boolean; message: string }>;
   addItemToTable: (tableId: string, item: CatalogItem) => Promise<{ success: boolean; message: string }>;
   updateTableItemQuantity: (tableId: string, itemId: string, quantity: number, round: number) => Promise<{ success: boolean; message: string }>;
@@ -1066,6 +1067,7 @@ export const useTenantStore = create<TenantState>()(
               reorder_level: input.reorder_level,
               stock_tracked: input.stock_tracked,
               prep_station: input.prep_station,
+              digitax_template_id: input.digitax_template_id,
             }),
           });
           const data = await res.json();
