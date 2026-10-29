@@ -42,6 +42,8 @@ interface RestaurantBillRecord {
   etims_receipt_date: string | null;
   etims_receipt_number: string | null;
   etims_verification_url: string | null;
+  etims_customer_tin: string | null;
+  etims_customer_name: string | null;
   etims_error: string | null;
 }
 

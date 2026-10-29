@@ -78,11 +78,6 @@ CREATE TABLE IF NOT EXISTS property_integration_configs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     property_id UUID NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
     outlet_id UUID REFERENCES outlets(id) ON DELETE CASCADE,
-    etims_enabled BOOLEAN NOT NULL DEFAULT FALSE,
-    etims_business_name VARCHAR(255),
-    etims_pin VARCHAR(50),
-    etims_device_serial VARCHAR(120),
-    etims_endpoint TEXT,
     printer_enabled BOOLEAN NOT NULL DEFAULT FALSE,
     printer_model VARCHAR(160),
     printer_connection VARCHAR(30) CHECK (printer_connection IN ('network', 'bluetooth', 'usb')),
@@ -94,10 +89,25 @@ CREATE TABLE IF NOT EXISTS property_integration_configs (
     CONSTRAINT uq_property_integration_outlet UNIQUE (property_id, outlet_id)
 );
 
+CREATE TABLE IF NOT EXISTS digitax_configs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    property_id UUID NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+    outlet_id UUID NOT NULL REFERENCES outlets(id) ON DELETE CASCADE,
+    enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    api_base_url TEXT NOT NULL DEFAULT 'https://api.digitax.tech/ke/v2',
+    callback_url TEXT NOT NULL DEFAULT 'https://korebench.co.ke/api/integrations/digitax/callback',
+    api_key_encrypted TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_digitax_config_property_outlet UNIQUE (property_id, outlet_id)
+);
+
 CREATE TABLE IF NOT EXISTS etims_submissions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     property_id UUID NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
     outlet_id UUID REFERENCES outlets(id) ON DELETE SET NULL,
+    provider VARCHAR(40) NOT NULL DEFAULT 'legacy',
+    callback_token_hash VARCHAR(64),
     source_reference VARCHAR(160) NOT NULL,
     idempotency_key VARCHAR(160) NOT NULL,
     payload JSONB NOT NULL,
@@ -106,6 +116,5 @@ CREATE TABLE IF NOT EXISTS etims_submissions (
     provider_response JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT uq_etims_submission_idempotency UNIQUE (property_id, idempotency_key)
+    CONSTRAINT uq_etims_submission_idempotency UNIQUE (property_id, provider, idempotency_key)
 );
-

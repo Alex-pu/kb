@@ -47,6 +47,8 @@ interface BillRow extends QueryResultRow {
   etims_receipt_date: string | null;
   etims_receipt_number: string | null;
   etims_verification_url: string | null;
+  etims_customer_tin: string | null;
+  etims_customer_name: string | null;
   etims_error: string | null;
 }
 
@@ -108,6 +110,10 @@ export async function GET(request: Request) {
                 etims.scdc_id AS etims_scdc_id, etims.invoice_signature AS etims_signature,
                 etims.scu_receipt_date AS etims_receipt_date,
                 etims.scu_receipt_number AS etims_receipt_number,
+                COALESCE(etims.payload->>'customer_tin', etims.provider_response->>'customer_tin',
+                         etims.provider_response#>>'{data,customer_tin}') AS etims_customer_tin,
+                COALESCE(etims.payload->>'customer_name', etims.provider_response->>'customer_name',
+                         etims.provider_response#>>'{data,customer_name}') AS etims_customer_name,
                 etims.verification_url AS etims_verification_url, etims.error_message AS etims_error,
                 COALESCE(
                   (SELECT jsonb_agg(
@@ -125,7 +131,7 @@ export async function GET(request: Request) {
          LEFT JOIN restaurant_room_charge_requests charge
            ON charge.check_id = rc.id AND charge.status = 'pending'
          LEFT JOIN etims_submissions etims
-           ON etims.restaurant_check_id = rc.id AND etims.property_id = rc.property_id
+           ON etims.restaurant_check_id = rc.id AND etims.property_id = rc.property_id AND etims.provider = 'digitax'
          WHERE rc.outlet_id = $1
            AND (
              COALESCE(s.business_date, (rc.created_at AT TIME ZONE 'Africa/Nairobi')::date) = $2::date
@@ -181,6 +187,8 @@ export async function GET(request: Request) {
         etims_receipt_date: row.etims_receipt_date,
         etims_receipt_number: row.etims_receipt_number,
         etims_verification_url: row.etims_verification_url,
+        etims_customer_tin: row.etims_customer_tin,
+        etims_customer_name: row.etims_customer_name,
         etims_error: row.etims_error,
       })),
     });

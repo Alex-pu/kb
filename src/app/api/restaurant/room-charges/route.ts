@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import type { QueryResultRow } from "pg";
 import { assertOutletAccess, getAuthContext, hasPermission } from "@/lib/auth/require-session";
 import { databaseReady, withUserContext } from "@/lib/db/postgres";
-import { fiscalizeRestaurantBill } from "@/lib/etims/restaurant-bills";
 
 export const runtime = "nodejs";
 
@@ -414,24 +413,9 @@ export async function POST(request: Request) {
     if (outcome === "stay_not_active") return NextResponse.json({ success: false, message: "The guest stay is no longer active." }, { status: 409 });
     if (outcome === "stock_low") return NextResponse.json({ success: false, message: "There is not enough stock to settle this restaurant bill." }, { status: 409 });
     if (outcome === "approved") {
-      const approvedBill = await withUserContext(auth.userId, (run) => run<{ check_id: string; outlet_id: string }>(
-        `SELECT check_id, outlet_id FROM restaurant_room_charge_requests
-         WHERE id = $1 AND property_id = $2 AND status = 'approved'`,
-        [requestId, propertyId],
-      ));
-      let fiscalization: { status: string; message: string } = { status: "blocked", message: "The bill is paid but not yet eTIMS-signed." };
-      const bill = approvedBill.rows[0];
-      if (bill) {
-        try {
-          fiscalization = await fiscalizeRestaurantBill(auth.userId, propertyId, bill.outlet_id, bill.check_id);
-        } catch (error) {
-          console.error("Approved room charge could not be recorded with eTIMS.", error);
-        }
-      }
       return NextResponse.json({
         success: true,
-        message: `Restaurant bill approved and added to the guest folio. ${fiscalization.status === "submitted" ? "eTIMS receipt received." : `Paid but not yet eTIMS-signed: ${fiscalization.message}`}`,
-        fiscalization,
+        message: "Restaurant bill approved and added to the guest folio. The cashier can issue its eTIMS receipt from bill history.",
       });
     }
     return NextResponse.json({ success: true, message: "Room-charge request rejected." });

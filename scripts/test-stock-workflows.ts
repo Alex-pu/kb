@@ -364,17 +364,16 @@ async function runWorkflow(baseUrl: string, fixture: Fixture) {
     item_id: itemId,
     etims_item_code: "KE1TEST000001",
     etims_tax_code: "B",
+    etims_item_class_code: "99000000",
   }, cookie);
-  assertSuccess(itemMapping, "Saving eTIMS item mapping");
-  const insecureEtimsConfig = await requestJson(baseUrl, "/api/integrations/etims-config", "PATCH", {
+  assertSuccess(itemMapping, "Saving DigiTax item mapping");
+  const insecureDigitaxConfig = await requestJson(baseUrl, "/api/integrations/digitax-config", "PATCH", {
     outlet_id: fixture.outletId,
     enabled: true,
-    business_name: "Automated test property",
-    endpoint: "http://127.0.0.1:8888/api/v1/",
-    username: "test-user",
-    password: "test-password",
+    api_base_url: "https://api.attacker.example/ke/v2",
+    api_key: "test-api-key",
   }, cookie);
-  assert.equal(insecureEtimsConfig.response.status, 400, "Insecure HTTP eTIMS endpoint was accepted");
+  assert.equal(insecureDigitaxConfig.response.status, 400, "Non-DigiTax API endpoint was accepted");
 
   const concurrentCatalogItems = await Promise.all([1, 2].map((index) =>
     requestJson(baseUrl, "/api/pos/catalog", "POST", {
@@ -724,9 +723,15 @@ async function runWorkflow(baseUrl: string, fixture: Fixture) {
   };
   const settlement = await requestJson(baseUrl, "/api/restaurant/checks", "POST", settlementBody, cookie);
   assertSuccess(settlement, "Settling restaurant check");
-  assert.ok(isRecord(settlement.body.fiscalization), "Settled bill omitted its eTIMS status");
-  assert.equal(settlement.body.fiscalization.status, "blocked", "Bill without configured eTIMS mappings/provider should remain blocked");
-  assert.match(String(settlement.body.message), /paid but not yet eTIMS-signed/i);
+  assert.equal("fiscalization" in settlement.body, false, "Bill payment unexpectedly submitted to DigiTax automatically");
+  assert.match(String(settlement.body.message), /cashier can issue its eTIMS receipt/i);
+  const manualSubmission = await requestJson(baseUrl, "/api/restaurant/etims", "POST", {
+    outlet_id: fixture.outletId,
+    check_id: savedCheck.body.check_id,
+    customer_pin: "P123456789Y",
+  }, cookie);
+  assertSuccess(manualSubmission, "Manually issuing a DigiTax receipt");
+  assert.equal((manualSubmission.body.fiscalization as Record<string, unknown>).status, "blocked");
   const blockedRetry = await requestJson(baseUrl, "/api/restaurant/etims", "POST", {
     outlet_id: fixture.outletId,
     check_id: savedCheck.body.check_id,
@@ -746,6 +751,7 @@ async function runWorkflow(baseUrl: string, fixture: Fixture) {
   const fiscalBill = billHistory.body.bills.find((bill: unknown) => isRecord(bill) && bill.id === savedCheck.body.check_id);
   assert.ok(isRecord(fiscalBill), "Settled bill was missing from cashier bill history");
   assert.equal(fiscalBill.etims_status, "blocked");
+  assert.equal(fiscalBill.etims_customer_tin, "P123456789Y");
   assert.equal(fiscalBill.etims_signature, null);
   const duplicateSettlement = await requestJson(
     baseUrl,

@@ -3,7 +3,6 @@ import type { QueryResultRow } from "pg";
 import { assertOutletAccess, getAuthContext, hasPermission } from "@/lib/auth/require-session";
 import { databaseReady, withUserContext } from "@/lib/db/postgres";
 import type { CatalogItem, Kot, KotStatus, PrepStation, ProductCategory, TenderLine } from "@/lib/types/database";
-import { fiscalizeRestaurantBill } from "@/lib/etims/restaurant-bills";
 
 export const runtime = "nodejs";
 
@@ -709,20 +708,13 @@ export async function POST(request: Request) {
     if (result.outcome === "already_settled") return NextResponse.json({ success: false, message: "This restaurant bill has already been settled." }, { status: 409 });
     if (result.outcome === "voided") return NextResponse.json({ success: true, message: "Unsent restaurant bill cancelled.", check_id: result.check_id });
     if (result.outcome === "settled") {
-      let fiscalization: { status: string; message: string } = { status: "blocked", message: "The bill is paid but not yet eTIMS-signed." };
-      try {
-        fiscalization = await fiscalizeRestaurantBill(auth.userId, scope.propertyId, outletId, result.check_id);
-      } catch (error) {
-        console.error("Restaurant bill was paid, but its eTIMS submission could not be recorded.", error);
-      }
       return NextResponse.json({
         success: true,
-        message: `Bill settled for KSh ${result.total.toFixed(2)}. ${fiscalization.status === "submitted" ? "eTIMS receipt received." : `Paid but not yet eTIMS-signed: ${fiscalization.message}`}`,
+        message: `Bill settled for KSh ${result.total.toFixed(2)}. The cashier can issue its eTIMS receipt from bill history.`,
         check_id: result.check_id,
         total: result.total,
         cashier_id: result.cashier_id,
         cashier_name: result.cashier_name,
-        fiscalization,
       });
     }
     return NextResponse.json({

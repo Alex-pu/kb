@@ -26,7 +26,7 @@ export default function CatalogPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [mappingItemId, setMappingItemId] = useState<string | null>(null);
-  const [mapping, setMapping] = useState({ etims_item_code: "", etims_tax_code: "", etims_qty_unit_code: "", etims_pkg_unit_code: "", etims_item_class_code: "" });
+  const [mapping, setMapping] = useState({ etims_item_code: "", etims_tax_code: "", etims_item_class_code: "" });
 
   const visibleItems = catalog.filter((item) =>
     `${item.name} ${item.sku} ${item.barcode || ""}`.toLowerCase().includes(query.toLowerCase())
@@ -93,13 +93,13 @@ export default function CatalogPage() {
         body: JSON.stringify({ outlet_id: activeOutlet.id, item_id: item.id, ...mapping }),
       });
       const result = await response.json();
-      setMessage(result.message || "Could not save the eTIMS mapping.");
+      setMessage(result.message || "Could not save the DigiTax mapping.");
       if (response.ok && result.success) {
         setMappingItemId(null);
         await loadCatalog();
       }
     } catch {
-      setMessage("Could not reach the server to save the eTIMS mapping.");
+      setMessage("Could not reach the server to save the DigiTax mapping.");
     } finally {
       setSaving(false);
     }
@@ -162,8 +162,6 @@ export default function CatalogPage() {
                         setMapping({
                           etims_item_code: item.etims_item_code ?? "",
                           etims_tax_code: item.etims_tax_code ?? "",
-                          etims_qty_unit_code: item.etims_qty_unit_code ?? "",
-                          etims_pkg_unit_code: item.etims_pkg_unit_code ?? "",
                           etims_item_class_code: item.etims_item_class_code ?? "",
                         });
                       }} className="text-[10px] font-semibold underline">{item.etims_item_code && item.etims_tax_code ? "Edit mapping" : "Map item"}</button>}
@@ -176,13 +174,11 @@ export default function CatalogPage() {
 
           {mappingItemId && canManageCatalog && (
             <form onSubmit={saveEtimsMapping} className="grid gap-3 rounded border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900 sm:grid-cols-2">
-              <div className="sm:col-span-2"><h2 className="text-sm font-semibold">eTIMS product mapping</h2><p className="text-[10px] text-neutral-500">Use the exact codes issued by your eTIMS provider. Unmapped items cannot be fiscalized.</p></div>
+              <div className="sm:col-span-2"><h2 className="text-sm font-semibold">DigiTax product mapping</h2><p className="text-[10px] text-neutral-500">Use the DigiTax item barcode, item class code, and tax type code. An item without all three mappings cannot be signed.</p></div>
               {([
-                ["etims_item_code", "eTIMS item code"],
-                ["etims_tax_code", "Tax code"],
-                ["etims_qty_unit_code", "Quantity unit code (optional)"],
-                ["etims_pkg_unit_code", "Package unit code (optional)"],
-                ["etims_item_class_code", "Item class code (optional)"],
+                ["etims_item_code", "DigiTax item barcode"],
+                ["etims_tax_code", "DigiTax tax type code"],
+                ["etims_item_class_code", "DigiTax item class code"],
               ] as const).map(([key, label]) => <label key={key} className="space-y-1 text-[10px] text-neutral-500">{label}{key === "etims_tax_code" ? <select value={mapping[key]} onChange={(event) => setMapping({ ...mapping, [key]: event.target.value })} className="block w-full rounded border border-neutral-300 bg-neutral-50 px-2 py-2 text-xs text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white"><option value="">Select tax code</option>{["A", "B", "C", "D", "E"].map((code) => <option key={code} value={code}>{code}</option>)}</select> : <input value={mapping[key]} onChange={(event) => setMapping({ ...mapping, [key]: event.target.value })} maxLength={key === "etims_item_code" ? 80 : key === "etims_item_class_code" ? 40 : 20} className="block w-full rounded border border-neutral-300 bg-neutral-50 px-2 py-2 text-xs text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white" />}</label>)}
               <div className="sm:col-span-2 flex gap-2"><button disabled={saving} className="rounded bg-black px-3 py-2 text-xs font-semibold text-white disabled:opacity-50 dark:bg-white dark:text-black">{saving ? "Saving…" : "Save mapping"}</button><button type="button" onClick={() => setMappingItemId(null)} className="rounded border px-3 py-2 text-xs">Cancel</button></div>
             </form>

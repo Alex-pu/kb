@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { useTenantStore } from "@/lib/store/tenant-store";
-import { SlidersHorizontal, Building2, Store, TerminalSquare, ShieldAlert, Check, Smartphone, ReceiptText, FileBarChart2, BedDouble, Plus } from "lucide-react";
+import { SlidersHorizontal, Building2, Store, TerminalSquare, ShieldAlert, Check, Smartphone, ReceiptText, BedDouble, Plus } from "lucide-react";
 
 const initialIntegrations = {
   darajaEnabled: true,
@@ -15,11 +15,6 @@ const initialIntegrations = {
   darajaCallbackSecret: "demo_callback_secret",
   darajaCallbackUrl: "https://payments.example.com/daraja/callback",
   darajaTimeoutUrl: "https://payments.example.com/daraja/timeout",
-  etimsEnabled: true,
-  etimsBusinessName: "Safari Grand Lodge & Grill",
-  etimsPin: "P051234567Z",
-  etimsDeviceSerial: "ETIMS-1001",
-  etimsEndpoint: "",
   printerEnabled: true,
   printerModel: "Xprinter XP-58II",
   printerConnection: "network",
@@ -56,7 +51,13 @@ export default function PropertySettingsPage() {
   const [roomMessage, setRoomMessage] = useState<string | null>(null);
   const canManageRooms = hasPermission("rooms:manage");
   const canManageSettings = hasPermission("settings:manage");
-  const [etimsConfig, setEtimsConfig] = useState({ enabled: false, business_name: "", endpoint: "", username: "", password: "", has_password: false });
+  const [digitaxConfig, setDigitaxConfig] = useState({
+    enabled: false,
+    api_base_url: "https://api.digitax.tech/ke/v2",
+    callback_url: "https://korebench.co.ke/api/integrations/digitax/callback",
+    api_key: "",
+    has_api_key: false,
+  });
   const [etimsMessage, setEtimsMessage] = useState<string | null>(null);
   const [savingEtims, setSavingEtims] = useState(false);
 
@@ -65,23 +66,22 @@ export default function PropertySettingsPage() {
   React.useEffect(() => {
     if (!activeOutlet || !canManageSettings) return;
     let cancelled = false;
-    setEtimsConfig({ enabled: false, business_name: "", endpoint: "", username: "", password: "", has_password: false });
+    setDigitaxConfig({ enabled: false, api_base_url: "https://api.digitax.tech/ke/v2", callback_url: "https://korebench.co.ke/api/integrations/digitax/callback", api_key: "", has_api_key: false });
     setEtimsMessage(null);
-    void fetch(`/api/integrations/etims-config?outlet_id=${encodeURIComponent(activeOutlet.id)}`, { credentials: "include" })
+    void fetch(`/api/integrations/digitax-config?outlet_id=${encodeURIComponent(activeOutlet.id)}`, { credentials: "include" })
       .then(async (response) => {
         const data = await response.json();
-        if (!response.ok || !data.success) throw new Error(data.message || "Could not load eTIMS settings.");
-        if (!cancelled && data.config) setEtimsConfig({
+        if (!response.ok || !data.success) throw new Error(data.message || "Could not load DigiTax settings.");
+        if (!cancelled && data.config) setDigitaxConfig({
           enabled: data.config.enabled,
-          business_name: data.config.business_name,
-          endpoint: data.config.endpoint,
-          username: data.config.username,
-          password: "",
-          has_password: data.config.has_password,
+          api_base_url: data.config.api_base_url,
+          callback_url: data.config.callback_url,
+          api_key: "",
+          has_api_key: data.config.has_api_key,
         });
       })
       .catch((error: unknown) => {
-        if (!cancelled) setEtimsMessage(error instanceof Error ? error.message : "Could not load eTIMS settings.");
+        if (!cancelled) setEtimsMessage(error instanceof Error ? error.message : "Could not load DigiTax settings.");
       });
     return () => { cancelled = true; };
   }, [activeOutlet?.id, canManageSettings]);
@@ -137,23 +137,23 @@ export default function PropertySettingsPage() {
     }
   };
 
-  const saveEtimsConfig = async (event: React.FormEvent<HTMLFormElement>) => {
+  const saveDigitaxConfig = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!activeOutlet || savingEtims) return;
     setSavingEtims(true);
     setEtimsMessage(null);
     try {
-      const response = await fetch("/api/integrations/etims-config", {
+      const response = await fetch("/api/integrations/digitax-config", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ outlet_id: activeOutlet.id, ...etimsConfig }),
+        body: JSON.stringify({ outlet_id: activeOutlet.id, ...digitaxConfig }),
       });
       const data = await response.json();
-      setEtimsMessage(data.message || "Could not save eTIMS settings.");
-      if (response.ok && data.success) setEtimsConfig((current) => ({ ...current, password: "", has_password: true }));
+      setEtimsMessage(data.message || "Could not save DigiTax settings.");
+      if (response.ok && data.success) setDigitaxConfig((current) => ({ ...current, api_key: "", has_api_key: true }));
     } catch {
-      setEtimsMessage("Could not reach the server to save eTIMS settings.");
+      setEtimsMessage("Could not reach the server to save DigiTax settings.");
     } finally {
       setSavingEtims(false);
     }
@@ -161,10 +161,7 @@ export default function PropertySettingsPage() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    // LAN admin writes (Daraja/eTIMS/printer config) require a LOCAL_API_TOKEN bearer,
-    // which isn't available from the browser; those routes stay disabled here and
-    // settings are saved to local property state instead until that bridge is built.
-    // LAN admin writes (Daraja/eTIMS/printer config) require a LOCAL_API_TOKEN bearer,
+    // LAN admin writes (Daraja/printer config) require a LOCAL_API_TOKEN bearer,
     // which isn't available from the browser, so these routes aren't called from here.
     // Settings are saved to local property state until that bridge is built.
     const result = saveDarajaConfig({
@@ -205,18 +202,24 @@ export default function PropertySettingsPage() {
         </div>
 
         {canManageSettings && (
-          <form onSubmit={saveEtimsConfig} className="space-y-4 rounded border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
-            <div><h2 className="text-sm font-semibold">eTIMS fiscalization</h2><p className="mt-1 text-[10px] text-neutral-500">Provider credentials are encrypted at rest. Only HTTPS endpoints are accepted. Confirm the provider URL and token-auth contract before enabling live submissions.</p></div>
-            {!activeOutlet && <p className="text-xs text-amber-700">Select an outlet to configure its eTIMS connection.</p>}
-            <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={etimsConfig.enabled} onChange={(event) => setEtimsConfig({ ...etimsConfig, enabled: event.target.checked })} />Enable automatic fiscalization after bill payment</label>
+          <form onSubmit={saveDigitaxConfig} className="space-y-4 rounded border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
+            <div><h2 className="text-sm font-semibold">DigiTax eTIMS</h2><p className="mt-1 text-[10px] text-neutral-500">Uses DigiTax POST /sales-with-items and X-API-Key authentication. API keys are encrypted at rest. A cashier issues an eTIMS receipt after payment; the customer PIN is optional and is included on the first submission.</p></div>
+            {!activeOutlet && <p className="text-xs text-amber-700">Select an outlet to configure DigiTax.</p>}
+            <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={digitaxConfig.enabled} onChange={(event) => setDigitaxConfig({ ...digitaxConfig, enabled: event.target.checked })} />Enable DigiTax eTIMS submissions</label>
             <div className="grid gap-3 sm:grid-cols-2">
-              <label className="space-y-1 text-[10px] text-neutral-500">Business name<input required={etimsConfig.enabled} value={etimsConfig.business_name} onChange={(event) => setEtimsConfig({ ...etimsConfig, business_name: event.target.value })} maxLength={255} className="block w-full rounded border border-neutral-300 bg-neutral-50 px-2 py-2 text-xs text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white" /></label>
-              <label className="space-y-1 text-[10px] text-neutral-500">HTTPS provider base URL<input required={etimsConfig.enabled} type="url" placeholder="https://provider.example/api/v1/" value={etimsConfig.endpoint} onChange={(event) => setEtimsConfig({ ...etimsConfig, endpoint: event.target.value })} className="block w-full rounded border border-neutral-300 bg-neutral-50 px-2 py-2 text-xs text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white" /></label>
-              <label className="space-y-1 text-[10px] text-neutral-500">Provider username<input required={etimsConfig.enabled} value={etimsConfig.username} onChange={(event) => setEtimsConfig({ ...etimsConfig, username: event.target.value })} maxLength={255} className="block w-full rounded border border-neutral-300 bg-neutral-50 px-2 py-2 text-xs text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white" /></label>
-              <label className="space-y-1 text-[10px] text-neutral-500">Provider password<input type="password" autoComplete="new-password" required={etimsConfig.enabled && !etimsConfig.has_password} value={etimsConfig.password} onChange={(event) => setEtimsConfig({ ...etimsConfig, password: event.target.value })} placeholder={etimsConfig.has_password ? "Saved securely; leave blank to retain" : "Required to enable eTIMS"} className="block w-full rounded border border-neutral-300 bg-neutral-50 px-2 py-2 text-xs text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white" /></label>
+              <label className="space-y-1 text-[10px] text-neutral-500">DigiTax API base URL
+                <input required={digitaxConfig.enabled} type="url" placeholder="https://api.digitax.tech/ke/v2" value={digitaxConfig.api_base_url} onChange={(event) => setDigitaxConfig({ ...digitaxConfig, api_base_url: event.target.value })} className="block w-full rounded border border-neutral-300 bg-neutral-50 px-2 py-2 text-xs text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white" />
+              </label>
+              <label className="space-y-1 text-[10px] text-neutral-500">DigiTax callback URL
+                <input required={digitaxConfig.enabled} type="url" placeholder="https://korebench.co.ke/api/integrations/digitax/callback" value={digitaxConfig.callback_url} onChange={(event) => setDigitaxConfig({ ...digitaxConfig, callback_url: event.target.value })} className="block w-full rounded border border-neutral-300 bg-neutral-50 px-2 py-2 text-xs text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white" />
+                <span className="block text-[10px]">Use your public HTTPS server URL ending in /api/integrations/digitax/callback.</span>
+              </label>
+              <label className="space-y-1 text-[10px] text-neutral-500">DigiTax API key
+                <input type="password" autoComplete="new-password" required={digitaxConfig.enabled && !digitaxConfig.has_api_key} value={digitaxConfig.api_key} onChange={(event) => setDigitaxConfig({ ...digitaxConfig, api_key: event.target.value })} placeholder={digitaxConfig.has_api_key ? "Saved securely; leave blank to retain" : "Required to enable DigiTax"} className="block w-full rounded border border-neutral-300 bg-neutral-50 px-2 py-2 text-xs text-neutral-900 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white" />
+              </label>
             </div>
             {etimsMessage && <p role="status" className="text-xs">{etimsMessage}</p>}
-            <button type="submit" disabled={!activeOutlet || savingEtims} className="rounded bg-black px-4 py-2 text-xs font-semibold text-white disabled:opacity-40 dark:bg-white dark:text-black">{savingEtims ? "Saving…" : "Save eTIMS settings"}</button>
+            <button type="submit" disabled={!activeOutlet || savingEtims} className="rounded bg-black px-4 py-2 text-xs font-semibold text-white disabled:opacity-40 dark:bg-white dark:text-black">{savingEtims ? "Saving…" : "Save DigiTax settings"}</button>
           </form>
         )}
 
@@ -318,35 +321,6 @@ export default function PropertySettingsPage() {
               <div className="space-y-1 md:col-span-2">
                 <label className="text-neutral-500 font-medium">Timeout URL</label>
                 <input value={integrations.darajaTimeoutUrl} onChange={(event) => setIntegrations((prev) => ({ ...prev, darajaTimeoutUrl: event.target.value }))} className="w-full p-2 border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 rounded" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded p-5 space-y-4">
-            <h3 className="text-sm font-semibold flex items-center gap-2">
-              <FileBarChart2 className="w-4 h-4" />
-              eTIMS / Fiscal Compliance
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
-              <label className="space-y-1 md:col-span-2">
-                <span className="text-neutral-500 font-medium">eTIMS enabled</span>
-                <input type="checkbox" checked={integrations.etimsEnabled} onChange={(event) => setIntegrations((prev) => ({ ...prev, etimsEnabled: event.target.checked }))} className="mt-2 h-4 w-4" />
-              </label>
-              <div className="space-y-1">
-                <label className="text-neutral-500 font-medium">Business name</label>
-                <input value={integrations.etimsBusinessName} onChange={(event) => setIntegrations((prev) => ({ ...prev, etimsBusinessName: event.target.value }))} className="w-full p-2 border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 rounded" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-neutral-500 font-medium">KRA PIN</label>
-                <input value={integrations.etimsPin} onChange={(event) => setIntegrations((prev) => ({ ...prev, etimsPin: event.target.value }))} className="w-full p-2 border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 rounded" />
-              </div>
-              <div className="space-y-1 md:col-span-2">
-                <label className="text-neutral-500 font-medium">Fiscal device serial</label>
-                <input value={integrations.etimsDeviceSerial} onChange={(event) => setIntegrations((prev) => ({ ...prev, etimsDeviceSerial: event.target.value }))} className="w-full p-2 border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 rounded" />
-              </div>
-              <div className="space-y-1 md:col-span-2">
-                <label className="text-neutral-500 font-medium">eTIMS server endpoint</label>
-                <input type="url" value={integrations.etimsEndpoint} onChange={(event) => setIntegrations((prev) => ({ ...prev, etimsEndpoint: event.target.value }))} placeholder="https://your-etims-adapter.example/invoices" className="w-full p-2 border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 rounded" />
               </div>
             </div>
           </div>

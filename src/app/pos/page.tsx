@@ -40,6 +40,9 @@ export default function PosPage() {
   const [billsLoading, setBillsLoading] = useState(false);
   const [billsMessage, setBillsMessage] = useState<string | null>(null);
   const [selectedBillId, setSelectedBillId] = useState<string | null>(null);
+  const [customerPins, setCustomerPins] = useState<Record<string, string>>({});
+  const [customerNames, setCustomerNames] = useState<Record<string, string>>({});
+  const [submittingEtimsBillId, setSubmittingEtimsBillId] = useState<string | null>(null);
   const { restaurantBills, loadRestaurantBills, loadRestaurantChecks, settleTable } = useTenantStore();
 
   useEffect(() => {
@@ -73,6 +76,17 @@ export default function PosPage() {
     });
     return () => { cancelled = true; };
   }, [activeOutlet?.id, billDate, isRestaurantCashier, loadRestaurantBills]);
+
+  useEffect(() => {
+    if (!isRestaurantCashier || !activeOutlet ||
+        !restaurantBills.some((bill) => bill.etims_status === "pending")) return;
+    const interval = window.setInterval(() => {
+      void loadRestaurantBills(billDate).then((result) => {
+        if (!result.success) setBillsMessage(result.message);
+      });
+    }, 10_000);
+    return () => window.clearInterval(interval);
+  }, [activeOutlet?.id, billDate, isRestaurantCashier, loadRestaurantBills, restaurantBills]);
 
   useEffect(() => {
     setCountedCash("");
@@ -145,19 +159,26 @@ export default function PosPage() {
     const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (character) => ({
       "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
     })[character] ?? character);
-    printWindow.document.write(`<!doctype html><html><head><title>eTIMS receipt ${escapeHtml(bill.bill_number)}</title><style>body{font:13px Arial,sans-serif;max-width:360px;margin:24px auto;color:#111}h1,p{margin:0 0 9px}.muted{color:#555;font-size:11px}.signature{overflow-wrap:anywhere;font-size:10px;border-top:1px dashed #777;padding-top:8px}</style></head><body><h1>Fiscal receipt</h1><p>${escapeHtml(bill.table_name)} • Bill ${escapeHtml(bill.bill_number)}</p><p>Total: KSh ${bill.total.toFixed(2)}</p><p class="muted">eTIMS invoice: ${escapeHtml(bill.etims_invoice_number)}<br>Receipt number: ${escapeHtml(bill.etims_receipt_number ?? "—")}<br>Receipt date: ${escapeHtml(bill.etims_receipt_date ?? "—")}<br>SCDC ID: ${escapeHtml(bill.etims_scdc_id ?? "—")}</p><p>Verify: <a href="${escapeHtml(bill.etims_verification_url)}">${escapeHtml(bill.etims_verification_url)}</a></p><p class="signature">Signature: ${escapeHtml(bill.etims_signature)}</p><script>window.onload=()=>window.print()</script></body></html>`);
+    printWindow.document.write(`<!doctype html><html><head><title>DigiTax receipt ${escapeHtml(bill.bill_number)}</title><style>body{font:13px Arial,sans-serif;max-width:360px;margin:24px auto;color:#111}h1,p{margin:0 0 9px}.muted{color:#555;font-size:11px}.signature{overflow-wrap:anywhere;font-size:10px;border-top:1px dashed #777;padding-top:8px}</style></head><body><h1>eTIMS fiscal receipt</h1><p>${escapeHtml(bill.table_name)} • Bill ${escapeHtml(bill.bill_number)}</p><p>Total: KSh ${bill.total.toFixed(2)}</p><p class="muted">Invoice: ${escapeHtml(bill.etims_invoice_number)}<br>Receipt number: ${escapeHtml(bill.etims_receipt_number ?? "—")}<br>Receipt date: ${escapeHtml(bill.etims_receipt_date ?? "—")}<br>Customer: ${escapeHtml(bill.etims_customer_name ?? "—")}<br>Customer PIN: ${escapeHtml(bill.etims_customer_tin ?? "—")}</p><p>Verify: <a href="${escapeHtml(bill.etims_verification_url)}">${escapeHtml(bill.etims_verification_url)}</a></p><p class="signature">Signature: ${escapeHtml(bill.etims_signature)}</p><script>window.onload=()=>window.print()</script></body></html>`);
     printWindow.document.close();
   };
 
-  const retryBlockedEtims = async (bill: (typeof restaurantBills)[number]) => {
-    if (!activeOutlet) return;
+  const submitEtimsReceipt = async (bill: (typeof restaurantBills)[number]) => {
+    if (!activeOutlet || submittingEtimsBillId) return;
     setBillsMessage(null);
+    setSubmittingEtimsBillId(bill.id);
     try {
       const response = await fetch("/api/restaurant/etims", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ outlet_id: activeOutlet.id, check_id: bill.id, action: "retry_blocked" }),
+        body: JSON.stringify({
+          outlet_id: activeOutlet.id,
+          check_id: bill.id,
+          customer_pin: customerPins[bill.id]?.trim() || undefined,
+          customer_name: customerNames[bill.id]?.trim() || undefined,
+          ...(bill.etims_status === "blocked" || bill.etims_status === "failed" ? { action: "retry_blocked" } : {}),
+        }),
       });
       const data = await response.json();
       setMessage(data.message || "eTIMS status could not be updated.");
@@ -165,10 +186,14 @@ export default function PosPage() {
         setBillsMessage(data.message || "eTIMS status could not be updated.");
         return;
       }
+      setCustomerPins((current) => ({ ...current, [bill.id]: "" }));
+      setCustomerNames((current) => ({ ...current, [bill.id]: "" }));
       const refreshed = await loadRestaurantBills(billDate);
       if (!refreshed.success) setBillsMessage(refreshed.message);
     } catch {
-      setBillsMessage("Could not reach eTIMS status service. The bill is paid but must not be resubmitted until checked.");
+      setBillsMessage("Could not reach DigiTax. The submission status is unknown; verify it with DigiTax before retrying.");
+    } finally {
+      setSubmittingEtimsBillId(null);
     }
   };
 
@@ -321,12 +346,44 @@ export default function PosPage() {
                           <strong>eTIMS: {bill.etims_status ?? "not submitted"}</strong>
                           {bill.etims_status === "submitted" ? (
                             <div className="mt-1 space-y-1">
-                              <div>Invoice {bill.etims_invoice_number} • Receipt {bill.etims_receipt_number ?? "—"} • SCDC {bill.etims_scdc_id ?? "—"}</div>
+                              <div>Invoice {bill.etims_invoice_number} • Receipt {bill.etims_receipt_number ?? "—"}</div>
                               {bill.etims_verification_url && <a className="block underline" href={bill.etims_verification_url} target="_blank" rel="noreferrer">Verify fiscal receipt</a>}
                               <button type="button" onClick={() => printFiscalReceipt(bill)} className="rounded border border-current px-2 py-1 font-semibold">Reprint fiscal receipt</button>
                             </div>
                           ) : (
-                            <div className="mt-1">Paid but not yet eTIMS-signed. {bill.etims_error ?? (bill.etims_status === "pending" || bill.etims_status === "unknown" || bill.etims_status === "failed" ? "Check the provider status before any retry." : "Configure mappings and eTIMS settings, then retry.")}</div>
+                            <div className="mt-1 space-y-2">
+                              <p>Paid; no eTIMS receipt has been confirmed. {bill.etims_error ?? (bill.etims_status === "pending" || bill.etims_status === "unknown" || bill.etims_status === "failed" ? "Verify the sale with DigiTax before retrying." : "Enter the customer PIN if provided, then issue the eTIMS receipt.")}</p>
+                              {(!bill.etims_status || bill.etims_status === "blocked" || bill.etims_status === "failed") && (
+                                <div className="flex flex-wrap gap-2">
+                                  <input
+                                    aria-label={`Customer KRA PIN for bill ${bill.bill_number}`}
+                                    autoComplete="off"
+                                    maxLength={11}
+                                    placeholder="Customer KRA PIN (optional)"
+                                    value={customerPins[bill.id] ?? ""}
+                                    onChange={(event) => setCustomerPins((current) => ({ ...current, [bill.id]: event.target.value.toUpperCase() }))}
+                                    className="min-w-52 rounded border border-neutral-300 bg-white px-2 py-1.5 text-xs font-mono dark:border-neutral-700 dark:bg-neutral-900"
+                                  />
+                                  <input
+                                    aria-label={`Customer name for bill ${bill.bill_number}`}
+                                    autoComplete="off"
+                                    maxLength={255}
+                                    placeholder="Customer name (optional)"
+                                    value={customerNames[bill.id] ?? ""}
+                                    onChange={(event) => setCustomerNames((current) => ({ ...current, [bill.id]: event.target.value }))}
+                                    className="min-w-52 rounded border border-neutral-300 bg-white px-2 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-900"
+                                  />
+                                  <button
+                                    type="button"
+                                    disabled={submittingEtimsBillId !== null}
+                                    onClick={() => void submitEtimsReceipt(bill)}
+                                    className="rounded border border-emerald-600 px-2 py-1 font-semibold text-emerald-800 disabled:opacity-50 dark:text-emerald-300"
+                                  >
+                                    {submittingEtimsBillId === bill.id ? "Submitting…" : bill.etims_status === "blocked" || bill.etims_status === "failed" ? "Retry failed submission" : "Issue eTIMS receipt"}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                           )}
                         </div>
                       )}
@@ -340,9 +397,6 @@ export default function PosPage() {
                           <button type="button" onClick={() => void cancelRoomChargeForPayment(bill)} className="rounded border border-amber-500 px-3 py-1.5 text-[10px] font-semibold text-amber-900 dark:text-amber-300">
                             Cancel room request to take payment
                           </button>
-                        )}
-                        {bill.status === "settled" && bill.etims_status === "blocked" && (
-                          <button type="button" onClick={() => void retryBlockedEtims(bill)} className="rounded border border-amber-500 px-3 py-1.5 text-[10px] font-semibold text-amber-800 dark:text-amber-300">Retry eTIMS (blocked only)</button>
                         )}
                         {bill.status === "open" && !bill.room_charge_pending && (
                           <button type="button" onClick={() => { setSelectedBillId(selectedBillId === bill.id ? null : bill.id); setTenders({ cash: "", mpesa: "", card: "" }); setMpesaReference(""); }} className="rounded bg-black px-3 py-1.5 text-[10px] font-semibold text-white dark:bg-white dark:text-black">{selectedBillId === bill.id ? "Cancel payment" : "Clear bill"}</button>
@@ -363,7 +417,7 @@ export default function PosPage() {
                 ))}
               </div>
             )}
-            <p className="border-t border-neutral-200 pt-3 text-[10px] text-neutral-500 dark:border-neutral-800">eTIMS signing is not wired to this cashier workflow yet; bills are not represented as eTIMS-signed until a configured signing integration confirms them.</p>
+            <p className="border-t border-neutral-200 pt-3 text-[10px] text-neutral-500 dark:border-neutral-800">DigiTax submissions are sent after payment. A pending status means DigiTax has queued the sale; it is not a confirmed eTIMS receipt yet.</p>
           </section>
         ) : <div className="flex-1 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_390px] gap-4 min-h-0">
           <section className="relative z-10 min-h-[520px] flex flex-col bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded p-4">

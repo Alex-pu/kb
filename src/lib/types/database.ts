@@ -132,8 +132,6 @@ export interface CatalogItem {
   prep_station?: "kitchen" | "bar";
   etims_item_code?: string | null;
   etims_tax_code?: string | null;
-  etims_qty_unit_code?: string | null;
-  etims_pkg_unit_code?: string | null;
   etims_item_class_code?: string | null;
   stock_by_warehouse?: {
     kitchen: number;
