@@ -1,21 +1,12 @@
 import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { databaseReady, query } from "@/lib/db/postgres";
+import { hasSignedDigitaxReceipt, parseDigitaxReceiptDetails } from "@/lib/etims/digitax-receipt";
 
 export const runtime = "nodejs";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function safeHttpsUrl(value: unknown): string | null {
-  if (typeof value !== "string") return null;
-  try {
-    const url = new URL(value);
-    return url.protocol === "https:" ? url.toString() : null;
-  } catch {
-    return null;
-  }
 }
 
 export async function POST(request: Request) {
@@ -39,23 +30,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false }, { status: 400 });
   }
   const data = body.data;
-  const queueStatus = typeof data.queue_status === "string" ? data.queue_status.toLowerCase() : "";
+  const queueStatusValue = data.queue_status ?? data.status;
+  const queueStatus = typeof queueStatusValue === "string" ? queueStatusValue.trim().toLowerCase() : "";
+  const receiptDetails = parseDigitaxReceiptDetails(data);
+  const hasReceipt = hasSignedDigitaxReceipt(receiptDetails);
   const responseData = JSON.stringify(body);
   const callbackTokenHash = createHash("sha256").update(token).digest("hex");
 
   let status: "pending" | "submitted" | "failed" | "unknown";
   let errorMessage: string | null = null;
-  if (queueStatus === "completed") {
-    const invoiceNumber = data.invoice_number;
-    const signature = data.receipt_signature;
-    const verificationUrl = safeHttpsUrl(data.etims_url);
-    if (invoiceNumber !== undefined && invoiceNumber !== null && signature && verificationUrl) {
-      status = "submitted";
-    } else {
-      status = "unknown";
-      errorMessage = "DigiTax completed the sale but the callback did not include all signed receipt details.";
-    }
-  } else if (queueStatus === "failed") {
+  if (queueStatus === "failed") {
     status = "failed";
     const failure = typeof data.kra_response_message === "string" ? data.kra_response_message
       : typeof data.message === "string" ? data.message
@@ -64,20 +48,24 @@ export async function POST(request: Request) {
   } else if (queueStatus === "pending") {
     status = "pending";
     errorMessage = "DigiTax has queued the sale; eTIMS synchronization is still pending.";
+  } else if (hasReceipt) {
+    status = "submitted";
+  } else if (queueStatus === "completed" || queueStatus === "complete") {
+    status = "unknown";
+    errorMessage = "DigiTax completed the sale but the callback did not include all signed receipt details.";
+  } else if (queueStatus === "submitted") {
+    status = "unknown";
+    errorMessage = "DigiTax reports the sale as submitted but has not provided the final signed receipt details.";
   } else {
     status = "unknown";
-    errorMessage = "DigiTax sent an unrecognized sale.sync status. Verify the sale in DigiTax.";
+    errorMessage = `DigiTax sent an unrecognized sale.sync status${queueStatus ? ` (${queueStatus})` : ""}. Verify the sale in DigiTax.`;
   }
 
-  const invoiceNumber = data.invoice_number === undefined || data.invoice_number === null
-    ? null
-    : String(data.invoice_number);
-  const receiptNumber = data.receipt_number === undefined || data.receipt_number === null
-    ? null
-    : String(data.receipt_number);
-  const receiptDate = typeof data.date === "string" ? data.date : null;
-  const signature = typeof data.receipt_signature === "string" ? data.receipt_signature : null;
-  const verificationUrl = safeHttpsUrl(data.etims_url);
+  const invoiceNumber = receiptDetails.invoiceNumber;
+  const receiptNumber = receiptDetails.receiptNumber;
+  const receiptDate = receiptDetails.receiptDate;
+  const signature = receiptDetails.signature;
+  const verificationUrl = receiptDetails.verificationUrl;
   const providerReference = typeof data.digitax_id === "string" ? data.digitax_id
     : typeof data.id === "string" ? data.id
       : null;

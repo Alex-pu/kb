@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import type { QueryResultRow } from "pg";
 import { withUserContext } from "@/lib/db/postgres";
 import { decryptSecret } from "@/lib/supabase/secret-crypto";
+import { hasSignedDigitaxReceipt, parseDigitaxReceiptDetails } from "@/lib/etims/digitax-receipt";
 
 const DIGITAX_API_BASE_URL = "https://api.digitax.tech/ke/v2";
 const DIGITAX_CALLBACK_URL = "https://korebench.co.ke/api/integrations/digitax/callback";
@@ -326,26 +327,20 @@ export async function submitDigitaxSale(
           : `DigiTax rejected the sale with HTTP ${response.status}.${rejectionDetail} Correct the issue before retrying.`;
     } else {
       const data = saleResponseData(responseBody);
-      const invoice = data?.invoice_number;
-      const receipt = data?.receipt_number;
-      const date = data?.date;
       const saleId = data?.id;
       const providerStatusValue = data?.status ?? data?.queue_status;
-      const providerStatus = typeof providerStatusValue === "string" ? providerStatusValue.toUpperCase() : "";
+      const providerStatus = typeof providerStatusValue === "string" ? providerStatusValue.trim().toUpperCase() : "";
       const responseCustomerTin = data?.customer_tin;
       const responseCustomerName = data?.customer_name;
-      const sig = data?.receipt_signature;
-      const url = data?.etims_url;
-      invoiceNumber = typeof invoice === "string" || typeof invoice === "number" ? String(invoice) : null;
-      receiptNumber = typeof receipt === "string" || typeof receipt === "number" ? String(receipt) : null;
-      receiptDate = typeof date === "string" ? date : null;
+      const receiptDetails = data ? parseDigitaxReceiptDetails(data) : null;
+      invoiceNumber = receiptDetails?.invoiceNumber ?? null;
+      receiptNumber = receiptDetails?.receiptNumber ?? null;
+      receiptDate = receiptDetails?.receiptDate ?? null;
       providerReference = typeof saleId === "string" ? saleId : null;
       customerTin = typeof responseCustomerTin === "string" ? responseCustomerTin : customerTin;
       customerName = typeof responseCustomerName === "string" ? responseCustomerName : customerName;
-      signature = typeof sig === "string" ? sig : null;
-      verificationUrl = typeof url === "string" && (() => {
-        try { return new URL(url).protocol === "https:"; } catch { return false; }
-      })() ? url : null;
+      signature = receiptDetails?.signature ?? null;
+      verificationUrl = receiptDetails?.verificationUrl ?? null;
       if (typeof data?.kra_response_message === "string" && data.kra_response_message.trim()) {
         status = "blocked";
         resultMessage = `DigiTax reported a KRA sale failure: ${data.kra_response_message.slice(0, 500)}`;
@@ -355,11 +350,13 @@ export async function submitDigitaxSale(
       } else if (providerStatus === "PENDING") {
         status = "pending";
         resultMessage = "DigiTax has not confirmed KRA synchronization yet. Verify the sale with DigiTax before printing or retrying.";
-      } else if (providerStatus && providerStatus !== "COMPLETED") {
-        resultMessage = `DigiTax returned an unrecognized sale status (${providerStatus}). Verify the sale before retrying.`;
-      } else if (invoiceNumber && signature && verificationUrl) {
+      } else if (receiptDetails && hasSignedDigitaxReceipt(receiptDetails)) {
         status = "submitted";
-        resultMessage = "DigiTax signed the eTIMS receipt successfully.";
+        resultMessage = "DigiTax returned the signed eTIMS receipt details.";
+      } else if (providerStatus === "SUBMITTED") {
+        resultMessage = "DigiTax reports the sale as submitted but did not return final signed receipt details. Verify it in DigiTax.";
+      } else if (providerStatus && providerStatus !== "COMPLETED" && providerStatus !== "COMPLETE") {
+        resultMessage = `DigiTax returned an unrecognized sale status (${providerStatus}). Verify the sale before retrying.`;
       } else {
         resultMessage = "DigiTax accepted the request but did not return all signed receipt details. Verify it in DigiTax before retrying.";
       }

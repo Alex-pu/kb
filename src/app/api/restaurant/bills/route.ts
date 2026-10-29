@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { QueryResultRow } from "pg";
 import { assertOutletAccess, getAuthContext, hasPermission } from "@/lib/auth/require-session";
 import { databaseReady, withUserContext } from "@/lib/db/postgres";
+import { hasSignedDigitaxReceipt, parseDigitaxReceiptDetails } from "@/lib/etims/digitax-receipt";
 import type { CatalogItem, KotStatus, ShiftPeriod } from "@/lib/types/database";
 
 export const runtime = "nodejs";
@@ -160,37 +161,48 @@ export async function GET(request: Request) {
       success: true,
       can_view_all: canViewAll,
       business_date: businessDate,
-      bills: result.bills.map((row) => ({
-        id: row.id,
-        bill_number: row.bill_number,
-        waiter_id: row.waiter_id,
-        waiter_name: row.waiter_name,
-        cashier_name: row.cashier_name,
-        table_id: row.table_ref,
-        table_name: row.table_name,
-        business_date: row.business_date,
-        shift_period: row.shift_period,
-        status: row.status,
-        room_charge_pending: row.room_charge_pending,
-        room_charge_request_id: row.room_charge_request_id,
-        room_charge_guest_name: row.room_charge_guest_name,
-        payments: row.payments,
-        lines: row.lines,
-        total: Number(row.total),
-        created_at: row.created_at,
-        settled_at: row.settled_at,
-        kitchen_tickets: row.kitchen_tickets,
-        etims_status: row.etims_status,
-        etims_invoice_number: row.etims_invoice_number,
-        etims_scdc_id: row.etims_scdc_id,
-        etims_signature: row.etims_signature,
-        etims_receipt_date: row.etims_receipt_date,
-        etims_receipt_number: row.etims_receipt_number,
-        etims_verification_url: row.etims_verification_url,
-        etims_customer_tin: row.etims_customer_tin,
-        etims_customer_name: row.etims_customer_name,
-        etims_error: row.etims_error,
-      })),
+      bills: result.bills.map((row) => {
+        const receiptDetails = parseDigitaxReceiptDetails({
+          invoice_number: row.etims_invoice_number,
+          receipt_number: row.etims_receipt_number,
+          date: row.etims_receipt_date,
+          receipt_signature: row.etims_signature,
+          etims_url: row.etims_verification_url,
+        });
+        const receiptConfirmed = !["pending", "failed", "blocked"].includes(row.etims_status ?? "") &&
+          hasSignedDigitaxReceipt(receiptDetails);
+        return {
+          id: row.id,
+          bill_number: row.bill_number,
+          waiter_id: row.waiter_id,
+          waiter_name: row.waiter_name,
+          cashier_name: row.cashier_name,
+          table_id: row.table_ref,
+          table_name: row.table_name,
+          business_date: row.business_date,
+          shift_period: row.shift_period,
+          status: row.status,
+          room_charge_pending: row.room_charge_pending,
+          room_charge_request_id: row.room_charge_request_id,
+          room_charge_guest_name: row.room_charge_guest_name,
+          payments: row.payments,
+          lines: row.lines,
+          total: Number(row.total),
+          created_at: row.created_at,
+          settled_at: row.settled_at,
+          kitchen_tickets: row.kitchen_tickets,
+          etims_status: receiptConfirmed ? "submitted" : row.etims_status,
+          etims_invoice_number: receiptDetails.invoiceNumber,
+          etims_scdc_id: row.etims_scdc_id,
+          etims_signature: receiptDetails.signature,
+          etims_receipt_date: receiptDetails.receiptDate,
+          etims_receipt_number: receiptDetails.receiptNumber,
+          etims_verification_url: receiptDetails.verificationUrl,
+          etims_customer_tin: row.etims_customer_tin,
+          etims_customer_name: row.etims_customer_name,
+          etims_error: receiptConfirmed ? null : row.etims_error,
+        };
+      }),
     });
   } catch (error) {
     console.error("Failed to load restaurant bill history.", error);
