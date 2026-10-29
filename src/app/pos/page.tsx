@@ -43,6 +43,8 @@ export default function PosPage() {
   const [customerPins, setCustomerPins] = useState<Record<string, string>>({});
   const [customerNames, setCustomerNames] = useState<Record<string, string>>({});
   const [submittingEtimsBillId, setSubmittingEtimsBillId] = useState<string | null>(null);
+  const [confirmingEtimsBillId, setConfirmingEtimsBillId] = useState<string | null>(null);
+  const [etimsActionMessages, setEtimsActionMessages] = useState<Record<string, string>>({});
   const { restaurantBills, loadRestaurantBills, loadRestaurantChecks, settleTable } = useTenantStore();
 
   useEffect(() => {
@@ -181,9 +183,11 @@ export default function PosPage() {
         }),
       });
       const data = await response.json();
-      setMessage(data.message || "eTIMS status could not be updated.");
+      const responseMessage = typeof data.message === "string" ? data.message : "eTIMS status could not be updated.";
+      setMessage(responseMessage);
+      setEtimsActionMessages((current) => ({ ...current, [bill.id]: responseMessage }));
       if (!response.ok || !data.success) {
-        setBillsMessage(data.message || "eTIMS status could not be updated.");
+        setBillsMessage(responseMessage);
         return;
       }
       setCustomerPins((current) => ({ ...current, [bill.id]: "" }));
@@ -191,9 +195,12 @@ export default function PosPage() {
       const refreshed = await loadRestaurantBills(billDate);
       if (!refreshed.success) setBillsMessage(refreshed.message);
     } catch {
-      setBillsMessage("Could not reach DigiTax. The submission status is unknown; verify it with DigiTax before retrying.");
+      const responseMessage = "Could not reach DigiTax. The submission status is unknown; verify it with DigiTax before retrying.";
+      setMessage(responseMessage);
+      setEtimsActionMessages((current) => ({ ...current, [bill.id]: responseMessage }));
     } finally {
       setSubmittingEtimsBillId(null);
+      setConfirmingEtimsBillId(null);
     }
   };
 
@@ -242,6 +249,8 @@ export default function PosPage() {
       setBillsMessage("Could not reach the server to cancel this pending room charge.");
     }
   };
+
+  const confirmingEtimsBill = restaurantBills.find((bill) => bill.id === confirmingEtimsBillId) ?? null;
 
   return (
     <DashboardShell>
@@ -352,7 +361,8 @@ export default function PosPage() {
                             </div>
                           ) : (
                             <div className="mt-1 space-y-2">
-                              <p>Paid; no eTIMS receipt has been confirmed. {bill.etims_error ?? (bill.etims_status === "pending" || bill.etims_status === "unknown" || bill.etims_status === "failed" ? "Verify the sale with DigiTax before retrying." : "Enter the customer PIN if provided, then issue the eTIMS receipt.")}</p>
+                              <p>Paid; no eTIMS receipt has been confirmed. {bill.etims_error ?? (bill.etims_status === "pending" || bill.etims_status === "unknown" || bill.etims_status === "failed" ? "Verify the sale with DigiTax before retrying." : "Enter optional customer details, review the bill, then confirm sending it to DigiTax.")}</p>
+                              {etimsActionMessages[bill.id] && <p role="status" className="rounded bg-white/70 p-2 text-xs dark:bg-neutral-900/70">Last issue request: {etimsActionMessages[bill.id]}</p>}
                               {(!bill.etims_status || bill.etims_status === "blocked" || bill.etims_status === "failed") && (
                                 <div className="flex flex-wrap gap-2">
                                   <input
@@ -375,11 +385,11 @@ export default function PosPage() {
                                   />
                                   <button
                                     type="button"
-                                    disabled={submittingEtimsBillId !== null}
-                                    onClick={() => void submitEtimsReceipt(bill)}
+                                    disabled={submittingEtimsBillId !== null || confirmingEtimsBillId !== null}
+                                    onClick={() => setConfirmingEtimsBillId(bill.id)}
                                     className="rounded border border-emerald-600 px-2 py-1 font-semibold text-emerald-800 disabled:opacity-50 dark:text-emerald-300"
                                   >
-                                    {submittingEtimsBillId === bill.id ? "Submitting…" : bill.etims_status === "blocked" || bill.etims_status === "failed" ? "Retry failed submission" : "Issue eTIMS receipt"}
+                                    {bill.etims_status === "blocked" || bill.etims_status === "failed" ? "Review failed receipt" : "Review eTIMS receipt"}
                                   </button>
                                 </div>
                               )}
@@ -447,6 +457,40 @@ export default function PosPage() {
             <div className="border-t border-neutral-200 dark:border-neutral-800 pt-3 space-y-3"><div className="flex justify-between text-lg font-bold"><span>Total</span><span>KSh {total.toFixed(2)}</span></div>{canOperatePos ? <><div className="grid grid-cols-3 gap-2">{([['cash', 'Cash', Banknote], ['mpesa', 'M-Pesa', Smartphone], ['card', 'Card', CreditCard]] as const).map(([type, label, Icon]) => <label key={type} className="space-y-1"><span className="flex items-center gap-1 text-[10px] font-mono text-neutral-500"><Icon className="w-3 h-3" />{label}</span><input aria-label={`${label} tender`} type="number" min="0" value={tenders[type]} onChange={(event) => setTenders({ ...tenders, [type]: event.target.value })} className="w-full px-2 py-2 text-xs font-mono border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 rounded" /></label>)}</div>{Number(tenders.mpesa) > 0 && <input aria-label="M-Pesa reference" value={mpesaReference} onChange={(event) => setMpesaReference(event.target.value.toUpperCase())} placeholder="M-Pesa reference e.g. QWE123RTY" className="w-full px-2 py-2 text-xs font-mono border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 rounded" />}<div className={`text-xs font-mono ${Math.abs(tenderTotal - total) < 0.01 ? "text-emerald-600" : "text-neutral-500"}`}>Tendered KSh {tenderTotal.toFixed(2)} • {tenderTotal >= total ? `Change KSh ${(tenderTotal - total).toFixed(2)}` : `Due KSh ${(total - tenderTotal).toFixed(2)}`}</div><button onClick={submitCheckout} disabled={!activeShift || cart.length === 0 || Math.abs(tenderTotal - total) > 0.01} className="w-full py-2.5 bg-black text-white dark:bg-white dark:text-black disabled:opacity-30 disabled:cursor-not-allowed rounded text-xs font-bold flex items-center justify-center gap-2"><WalletCards className="w-4 h-4" /> Complete sale</button></> : <p className="text-xs text-neutral-500">Read-only POS access.</p>}</div>
           </section>
         </div>}
+        {confirmingEtimsBill && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="etims-confirm-title">
+            <div className="w-full max-w-lg space-y-4 rounded border border-neutral-300 bg-white p-5 shadow-xl dark:border-neutral-700 dark:bg-neutral-900">
+              <div>
+                <h2 id="etims-confirm-title" className="text-sm font-bold">Confirm eTIMS submission</h2>
+                <p className="mt-1 text-xs text-neutral-500">This sends the paid bill to DigiTax for eTIMS processing. Do not confirm if this is the wrong bill.</p>
+              </div>
+              <div className="space-y-2 rounded border border-neutral-200 p-3 text-xs dark:border-neutral-700">
+                <div className="flex justify-between gap-3"><span>Bill</span><strong>{confirmingEtimsBill.bill_number} • {confirmingEtimsBill.table_name}</strong></div>
+                {confirmingEtimsBill.lines.map((line, index) => (
+                  <div key={`${line.item.id}-${line.round}-${index}`} className="flex justify-between gap-3">
+                    <span>{line.quantity} × {line.item.name}</span><span>KSh {(line.quantity * line.item.price).toFixed(2)}</span>
+                  </div>
+                ))}
+                <div className="flex justify-between border-t border-neutral-200 pt-2 font-bold dark:border-neutral-700">
+                  <span>Total paid</span><span>KSh {confirmingEtimsBill.total.toFixed(2)}</span>
+                </div>
+                <div className="border-t border-neutral-200 pt-2 dark:border-neutral-700">
+                  <p>Customer PIN: {customerPins[confirmingEtimsBill.id]?.trim() || "Not provided"}</p>
+                  <p>Customer name: {customerNames[confirmingEtimsBill.id]?.trim() || "Not provided"}</p>
+                  {!customerPins[confirmingEtimsBill.id]?.trim() && customerNames[confirmingEtimsBill.id]?.trim() && (
+                    <p className="mt-1 text-amber-700 dark:text-amber-300">DigiTax customer details are only sent with a valid PIN.</p>
+                  )}
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <button type="button" disabled={submittingEtimsBillId !== null} onClick={() => setConfirmingEtimsBillId(null)} className="rounded border border-neutral-300 px-3 py-2 text-xs font-semibold dark:border-neutral-700">Cancel</button>
+                <button type="button" disabled={submittingEtimsBillId !== null} onClick={() => void submitEtimsReceipt(confirmingEtimsBill)} className="rounded bg-emerald-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">
+                  {submittingEtimsBillId === confirmingEtimsBill.id ? "Sending to DigiTax…" : "Confirm & send to DigiTax"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         {lastReceipt && <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"><div className="w-full max-w-sm bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded p-5 shadow-xl"><div className="flex items-start justify-between border-b border-dashed border-neutral-300 dark:border-neutral-700 pb-3"><div><h2 className="font-bold text-sm">KORE BENCH</h2><p className="text-[10px] font-mono text-neutral-500">Retail receipt • {lastReceipt.receipt_number}</p></div><button onClick={clearReceipt} className="text-xs text-neutral-500">Close</button></div><div className="py-3 space-y-2">{lastReceipt.lines.map((line) => <div key={line.item.id} className="flex justify-between text-xs font-mono"><span>{line.quantity} x {line.item.name}</span><span>KSh {(line.quantity * line.item.price).toFixed(2)}</span></div>)}</div><div className="border-t border-neutral-200 dark:border-neutral-800 pt-3 flex justify-between font-bold text-sm"><span>Total</span><span>KSh {lastReceipt.total.toFixed(2)}</span></div><div className="mt-2 text-[10px] font-mono text-neutral-500">{lastReceipt.tenders.map((tender) => <div key={`${tender.type}-${tender.amount}`}>{tender.type.toUpperCase()}: KSh {tender.amount.toFixed(2)}{tender.reference ? ` • ${tender.reference}` : ""}</div>)}</div><button onClick={() => window.print()} className="mt-4 w-full py-2 bg-black text-white dark:bg-white dark:text-black rounded text-xs font-semibold">Print receipt</button></div></div>}
       </div>
     </DashboardShell>
