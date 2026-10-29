@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { assertOutletAccess, getAuthContext, hasPermission } from "@/lib/auth/require-session";
 import { databaseReady, withUserContext } from "@/lib/db/postgres";
 import { decryptSecret } from "@/lib/supabase/secret-crypto";
+import { isDigitaxItemComplete } from "@/lib/etims/digitax-status";
 
 export const runtime = "nodejs";
 
@@ -161,7 +162,7 @@ export async function POST(request: Request) {
         if (skippedItems.length < 50) skippedItems.push({ id: item.id, name: item.item_name, reason });
       };
       const eligibleItems = remoteItems.filter((item) =>
-        item.active && (!item.status || item.status.toUpperCase() === "COMPLETE") &&
+        item.active && (!item.status || isDigitaxItemComplete(item.status)) &&
         item.item_type_code === "2" &&
         /^[ABCDE]$/.test(item.tax_type_code) &&
         item.item_class_code.trim().length > 0 &&
@@ -210,7 +211,7 @@ export async function POST(request: Request) {
           skip(remote, "inactive", "Inactive in DigiTax.");
           continue;
         }
-        if (remote.status && remote.status.toUpperCase() !== "COMPLETE") {
+        if (remote.status && !isDigitaxItemComplete(remote.status)) {
           skip(remote, "syncing_or_failed", `DigiTax status is ${remote.status}.`);
           continue;
         }

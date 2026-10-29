@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { useTenantStore } from "@/lib/store/tenant-store";
 import type { ProductCategory } from "@/lib/types/database";
+import { isDigitaxItemComplete } from "@/lib/etims/digitax-status";
 import { Plus, Search, X } from "lucide-react";
 
 interface DigiTaxCatalogItem {
@@ -311,7 +312,7 @@ export default function CatalogPage() {
         const matches = remoteByBarcode.get(barcode) ?? [];
         if (!barcode || localCounts.get(barcode) !== 1 || matches.length !== 1) return [];
         const remote = matches[0];
-        if (!remote.active || (remote.status && remote.status.toUpperCase() !== "COMPLETE") ||
+        if (!remote.active || (remote.status && !isDigitaxItemComplete(remote.status)) ||
             !["2", "3"].includes(String(remote.item_type_code)) ||
             (String(remote.item_type_code) === "2" && !item.stock_tracked) ||
             (String(remote.item_type_code) === "3" && item.stock_tracked) ||
@@ -509,7 +510,7 @@ export default function CatalogPage() {
                           const matchesStockType = !mappingItem ||
                             (String(item.item_type_code) === "2" && mappingItem.stock_tracked) ||
                             (String(item.item_type_code) === "3" && !mappingItem.stock_tracked);
-                          const ready = item.active && (!item.status || item.status.toUpperCase() === "COMPLETE") &&
+                          const ready = item.active && (!item.status || isDigitaxItemComplete(item.status)) &&
                             ["2", "3"].includes(String(item.item_type_code)) && Boolean(item.item_bar_code);
                           const selectable = ready && matchesStockType;
                           return <option key={item.id} value={item.id} disabled={!selectable}>
@@ -558,7 +559,7 @@ export default function CatalogPage() {
                     }} className="w-full p-2 border rounded bg-neutral-50 dark:bg-neutral-800">
                       <option value="">Select a completed DigiTax product or service profile</option>
                       {digitaxItems.filter((item) =>
-                        item.active && (!item.status || item.status.toUpperCase() === "COMPLETE") &&
+                        item.active && (!item.status || isDigitaxItemComplete(item.status)) &&
                         ["2", "3"].includes(String(item.item_type_code)) &&
                         /^[ABCDE]$/.test(item.tax_type_code) &&
                         Boolean(item.origin_nation_code && item.package_unit_code && item.quantity_unit_code),

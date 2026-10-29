@@ -1,6 +1,7 @@
 import type { QueryResultRow } from "pg";
 import { withUserContext } from "@/lib/db/postgres";
 import { decryptSecret } from "@/lib/supabase/secret-crypto";
+import { isDigitaxItemComplete } from "@/lib/etims/digitax-status";
 
 export interface DigitaxCatalogItem {
   id: string;
@@ -183,7 +184,7 @@ export async function getDigitaxItemTemplate(
   itemId: string,
 ): Promise<DigitaxCatalogItem> {
   const item = await fetchDigitaxItem(credentials, itemId);
-  if (!item.active || (item.status && item.status !== "COMPLETE") ||
+  if (!item.active || (item.status && !isDigitaxItemComplete(item.status)) ||
       (item.item_type_code !== "2" && item.item_type_code !== "3") ||
       !/^[ABCDE]$/.test(item.tax_type_code)) {
     throw new Error("Select an active, completed DigiTax finished product or service with a supported tax code.");
@@ -239,7 +240,7 @@ async function findByBarcode(
 
 function providerStatus(item: DigitaxCatalogItem): CatalogDigitaxSyncResult["status"] {
   if (!item.active || item.status === "FAILED") return "failed";
-  return item.status === "COMPLETE" ? "synced" : "pending";
+  return isDigitaxItemComplete(item.status) ? "synced" : "pending";
 }
 
 export async function syncCatalogItemToDigitax(
