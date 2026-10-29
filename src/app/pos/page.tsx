@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { useTenantStore } from "@/lib/store/tenant-store";
+import QRCode from "qrcode";
 import { ProductCategory, ShiftPeriod, TenderType } from "@/lib/types/database";
 import { businessDateForCountry } from "@/lib/utils/business-date";
 import { Banknote, CreditCard, Loader2, Minus, Plus, Search, Smartphone, Trash2, WalletCards } from "lucide-react";
@@ -151,7 +152,7 @@ export default function PosPage() {
     printWindow.document.close();
   };
 
-  const printFiscalReceipt = (bill: (typeof restaurantBills)[number]) => {
+  const printFiscalReceipt = async (bill: (typeof restaurantBills)[number]) => {
     if (bill.etims_status !== "submitted" || !bill.etims_invoice_number || !bill.etims_signature || !bill.etims_verification_url) return;
     const printWindow = window.open("", "_blank", "width=420,height=720");
     if (!printWindow) {
@@ -161,8 +162,53 @@ export default function PosPage() {
     const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (character) => ({
       "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
     })[character] ?? character);
-    printWindow.document.write(`<!doctype html><html><head><title>DigiTax receipt ${escapeHtml(bill.bill_number)}</title><style>body{font:13px Arial,sans-serif;max-width:360px;margin:24px auto;color:#111}h1,p{margin:0 0 9px}.muted{color:#555;font-size:11px}.signature{overflow-wrap:anywhere;font-size:10px;border-top:1px dashed #777;padding-top:8px}</style></head><body><h1>eTIMS fiscal receipt</h1><p>${escapeHtml(bill.table_name)} • Bill ${escapeHtml(bill.bill_number)}</p><p>Total: KSh ${bill.total.toFixed(2)}</p><p class="muted">Invoice: ${escapeHtml(bill.etims_invoice_number)}<br>Receipt number: ${escapeHtml(bill.etims_receipt_number ?? "—")}<br>Receipt date: ${escapeHtml(bill.etims_receipt_date ?? "—")}<br>Customer: ${escapeHtml(bill.etims_customer_name ?? "—")}<br>Customer PIN: ${escapeHtml(bill.etims_customer_tin ?? "—")}</p><p>Verify: <a href="${escapeHtml(bill.etims_verification_url)}">${escapeHtml(bill.etims_verification_url)}</a></p><p class="signature">Signature: ${escapeHtml(bill.etims_signature)}</p><script>window.onload=()=>window.print()</script></body></html>`);
-    printWindow.document.close();
+    try {
+      const qrCode = await QRCode.toDataURL(bill.etims_verification_url, {
+        errorCorrectionLevel: "M",
+        margin: 2,
+        width: 192,
+        color: { dark: "#000000", light: "#ffffff" },
+      });
+      const receiptDate = bill.etims_receipt_date
+        ? new Date(bill.etims_receipt_date).toLocaleString()
+        : "—";
+      printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>eTIMS receipt ${escapeHtml(bill.bill_number)}</title><style>
+        *{box-sizing:border-box}body{font:12px/1.45 Arial,Helvetica,sans-serif;width:72mm;margin:0 auto;padding:7mm 5mm;color:#111}
+        .brand{text-align:center;border-bottom:1px dashed #777;padding-bottom:12px;margin-bottom:12px}
+        .brand-name{font-size:19px;font-weight:800;letter-spacing:1.5px;margin:0}
+        .brand-subtitle{font-size:10px;letter-spacing:1px;text-transform:uppercase;margin:2px 0 0}
+        h1{font-size:14px;text-align:center;text-transform:uppercase;letter-spacing:.7px;margin:0 0 3px}
+        .verified{text-align:center;font-size:10px;font-weight:700;color:#14532d;margin:0 0 12px}
+        .details{margin:0 0 12px}.row{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;padding:4px 0;border-bottom:1px dotted #ccc}
+        .label{color:#555;flex:0 0 35%}.value{text-align:right;overflow-wrap:anywhere;font-weight:600}
+        .total{display:flex;justify-content:space-between;align-items:center;border-top:2px solid #111;border-bottom:2px solid #111;padding:9px 0;margin:13px 0;font-size:15px;font-weight:800}
+        .qr{text-align:center;margin:15px 0 10px}.qr img{display:block;width:40mm;height:40mm;margin:0 auto 6px;image-rendering:pixelated}
+        .qr-caption{font-size:10px;font-weight:700;margin:0}.verify-url{text-align:center;font-size:8px;overflow-wrap:anywhere;color:#444;margin:5px 0 0}
+        .signature{border-top:1px dashed #777;margin-top:12px;padding-top:8px;font-size:8px;overflow-wrap:anywhere}
+        .footer{text-align:center;font-size:9px;color:#444;margin-top:12px}
+        @page{size:80mm auto;margin:0}@media print{body{width:72mm;margin:0;padding:5mm}}
+      </style></head><body>
+        <header class="brand"><p class="brand-name">KORE BENCH</p><p class="brand-subtitle">Sales receipt</p></header>
+        <h1>eTIMS fiscal receipt</h1><p class="verified">KRA eTIMS VERIFIED</p>
+        <section class="details">
+          <div class="row"><span class="label">Invoice number</span><span class="value">${escapeHtml(bill.etims_invoice_number)}</span></div>
+          <div class="row"><span class="label">Receipt number</span><span class="value">${escapeHtml(bill.etims_receipt_number ?? "—")}</span></div>
+          <div class="row"><span class="label">Receipt date</span><span class="value">${escapeHtml(receiptDate)}</span></div>
+          <div class="row"><span class="label">Bill reference</span><span class="value">${escapeHtml(bill.bill_number)}</span></div>
+          <div class="row"><span class="label">Customer</span><span class="value">${escapeHtml(bill.etims_customer_name ?? "Walk-in customer")}</span></div>
+          <div class="row"><span class="label">Customer PIN</span><span class="value">${escapeHtml(bill.etims_customer_tin ?? "—")}</span></div>
+        </section>
+        <div class="total"><span>Total paid</span><span>KSh ${bill.total.toFixed(2)}</span></div>
+        <section class="qr"><img src="${qrCode}" alt="QR code to verify this eTIMS receipt"><p class="qr-caption">Scan to verify this receipt</p><p class="verify-url">${escapeHtml(bill.etims_verification_url)}</p></section>
+        <p class="signature"><strong>Receipt signature</strong><br>${escapeHtml(bill.etims_signature)}</p>
+        <footer class="footer">Issued through DigiTax • Keep this receipt for your records</footer>
+        <script>window.onload=()=>window.print()</script></body></html>`);
+      printWindow.document.close();
+    } catch (error) {
+      printWindow.close();
+      console.error("Could not generate the eTIMS receipt QR code.", error);
+      setBillsMessage("The fiscal receipt could not be prepared for printing. Please try again.");
+    }
   };
 
   const submitEtimsReceipt = async (bill: (typeof restaurantBills)[number]) => {
