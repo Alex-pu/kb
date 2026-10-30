@@ -12,6 +12,21 @@ interface RestaurantRoomStay {
   room_number: string;
 }
 
+interface WaiterMpesaPayment {
+  id: string;
+  checkout_request_id: string;
+  transaction_code: string;
+  status: "pending" | "paid" | "failed" | "timeout";
+  amount: number;
+  bill_reference: string;
+  payer_phone_suffix: string;
+  callback_result_code: number | null;
+  callback_result_description: string | null;
+  cleared: boolean;
+  applied_at: string | null;
+  updated_at: string;
+}
+
 const statusStyles: Record<TableStatus, string> = {
   available: "border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900",
   occupied: "border-neutral-900 dark:border-white bg-neutral-100 dark:bg-neutral-800",
@@ -86,6 +101,8 @@ export default function DiningPage() {
   const [mpesaReference, setMpesaReference] = useState("");
   const [payerPhone, setPayerPhone] = useState("");
   const [sendingMpesaPrompt, setSendingMpesaPrompt] = useState(false);
+  const [mpesaPrompt, setMpesaPrompt] = useState<WaiterMpesaPayment | null>(null);
+  const [mpesaPromptError, setMpesaPromptError] = useState<string | null>(null);
   const [roomChargeBookingId, setRoomChargeBookingId] = useState("");
   const [activeRoomStays, setActiveRoomStays] = useState<RestaurantRoomStay[]>([]);
   const [message, setMessage] = useState<string | null>(null);
@@ -174,6 +191,71 @@ export default function DiningPage() {
     return () => window.clearInterval(interval);
   }, [activeOutlet?.id, billDate, canManageRestaurant, canSettleRestaurant, loadRestaurantBills, loadRestaurantChecks, restaurantChecks, selectedTableId]);
 
+  useEffect(() => {
+    if (!activeOutlet || !mpesaPrompt ||
+        (mpesaPrompt.status !== "pending" && !(mpesaPrompt.status === "paid" && !mpesaPrompt.cleared))) return;
+    let cancelled = false;
+    let attempts = 0;
+    let timer: number | undefined;
+
+    const pollStatus = async () => {
+      attempts += 1;
+      const maxAttempts = mpesaPrompt.status === "pending" ? 120 : 10;
+      try {
+        const params = new URLSearchParams({
+          outlet_id: activeOutlet.id,
+          checkout_request_id: mpesaPrompt.checkout_request_id,
+        });
+        const response = await fetch(`/api/integrations/daraja/prompt?${params.toString()}`, {
+          credentials: "include",
+          cache: "no-store",
+        });
+        const value: unknown = await response.json();
+        if (!response.ok || typeof value !== "object" || value === null ||
+            !("success" in value) || value.success !== true ||
+            !("payment" in value) || typeof value.payment !== "object" || value.payment === null) {
+          throw new Error(
+            typeof value === "object" && value !== null && "message" in value && typeof value.message === "string"
+              ? value.message
+              : "M-Pesa payment status could not be checked.",
+          );
+        }
+
+        const payment = value.payment as WaiterMpesaPayment;
+        if (cancelled) return;
+        setMpesaPrompt(payment);
+        setMpesaPromptError(null);
+        if (payment.status === "paid" && payment.cleared) {
+          setMessage(`M-Pesa payment received. Bill ${payment.bill_reference} is paid and cleared.`);
+        } else if (payment.status === "paid") {
+          setMessage(`M-Pesa payment received for bill ${payment.bill_reference}, but the bill is not cleared yet. Ask the cashier to review it.`);
+        } else if (payment.status === "failed" || payment.status === "timeout") {
+          setMessage(`M-Pesa prompt ${payment.status === "timeout" ? "timed out" : "was not paid"} for bill ${payment.bill_reference}.`);
+        }
+
+        const paymentMayStillChange = payment.status === "pending" || (payment.status === "paid" && !payment.cleared);
+        const paymentMaxAttempts = payment.status === "pending" ? 120 : 10;
+        if (paymentMayStillChange && attempts < paymentMaxAttempts) {
+          timer = window.setTimeout(() => void pollStatus(), 3000);
+        } else if (paymentMayStillChange) {
+          setMpesaPromptError(payment.status === "pending"
+            ? "No payment callback arrived yet. Check the customer's phone and verify the payment before sending another prompt."
+            : "Payment is confirmed, but the bill has not cleared. Ask the cashier to review the bill before retrying.");
+        }
+      } catch (error) {
+        if (cancelled) return;
+        setMpesaPromptError(error instanceof Error ? error.message : "M-Pesa payment status could not be checked.");
+        if (attempts < maxAttempts) timer = window.setTimeout(() => void pollStatus(), 5000);
+      }
+    };
+
+    timer = window.setTimeout(() => void pollStatus(), 2500);
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [activeOutlet?.id, mpesaPrompt?.checkout_request_id, mpesaPrompt?.status, mpesaPrompt?.cleared]);
+
   const selectedCheck = selectedTableId ? restaurantChecks[selectedTableId] : undefined;
   const selectedRoomStay = selectedTableId?.startsWith(ROOM_SERVICE_PREFIX)
     ? activeStays.find((stay) => stay.booking_id === selectedTableId.slice(ROOM_SERVICE_PREFIX.length))
@@ -211,6 +293,8 @@ export default function DiningPage() {
 
   const openTable = (table: RestaurantTable) => {
     setSelectedTableId(table.id);
+    setMpesaPrompt(null);
+    setMpesaPromptError(null);
     if (table.id.startsWith(ROOM_SERVICE_PREFIX)) {
       setRoomChargeBookingId(table.id.slice(ROOM_SERVICE_PREFIX.length));
     } else {
@@ -259,7 +343,13 @@ export default function DiningPage() {
 
   const sendMpesaPrompt = async () => {
     if (!selectedTableId || !selectedCheck || !activeProperty || !activeOutlet || !payerPhone.trim() || sendingMpesaPrompt) return;
+    if (!Number.isInteger(total)) {
+      setMpesaPromptError("M-Pesa STK prompts require a whole-number amount in Kenyan shillings.");
+      return;
+    }
     setSendingMpesaPrompt(true);
+    setMpesaPrompt(null);
+    setMpesaPromptError(null);
     try {
       const response = await fetch("/api/integrations/daraja/prompt", {
         method: "POST",
@@ -278,9 +368,23 @@ export default function DiningPage() {
       const responseMessage = typeof value === "object" && value !== null && "message" in value && typeof value.message === "string"
         ? value.message
         : "M-Pesa prompt request could not be confirmed.";
-      setMessage(responseMessage);
-    } catch {
-      setMessage("Could not reach the server. The M-Pesa prompt status is unknown; check before retrying.");
+      if (!response.ok || typeof value !== "object" || value === null ||
+          !("success" in value) || value.success !== true ||
+          !("payment" in value) || typeof value.payment !== "object" || value.payment === null) {
+        throw new Error(responseMessage);
+      }
+      const payment = value.payment as WaiterMpesaPayment;
+      if (!payment.id || !payment.checkout_request_id) {
+        throw new Error("Daraja accepted the prompt, but its request ID could not be saved. Verify payment status before retrying.");
+      }
+      setMpesaPrompt(payment);
+      setMessage(`M-Pesa prompt sent to phone ending ${payment.payer_phone_suffix}. Waiting for customer approval.`);
+    } catch (error) {
+      const errorMessage = error instanceof Error
+        ? error.message
+        : "Could not reach the server. The M-Pesa prompt status is unknown; verify before retrying.";
+      setMpesaPromptError(errorMessage);
+      setMessage(errorMessage);
     } finally {
       setSendingMpesaPrompt(false);
     }
@@ -343,6 +447,31 @@ export default function DiningPage() {
         </div>
 
         {message && <div role="status" className="px-3 py-2 text-xs font-mono bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded">{message}</div>}
+
+        {mpesaPrompt && (
+          <section aria-live="polite" className="rounded border border-neutral-200 bg-white p-3 text-xs dark:border-neutral-800 dark:bg-neutral-900">
+            <div className="font-semibold">
+              {mpesaPrompt.status === "pending" && "M-Pesa prompt sent — awaiting customer approval"}
+              {mpesaPrompt.status === "paid" && mpesaPrompt.cleared && "M-Pesa payment received — bill cleared"}
+              {mpesaPrompt.status === "paid" && !mpesaPrompt.cleared && "M-Pesa payment received — bill not cleared"}
+              {mpesaPrompt.status === "failed" && "M-Pesa payment was cancelled or declined"}
+              {mpesaPrompt.status === "timeout" && "M-Pesa prompt timed out"}
+            </div>
+            <div className="mt-1 space-y-0.5 font-mono text-[10px] text-neutral-500">
+              <p>Bill {mpesaPrompt.bill_reference} · KSh {mpesaPrompt.amount.toFixed(2)} · phone ending {mpesaPrompt.payer_phone_suffix}</p>
+              <p>Daraja checkout request ID: {mpesaPrompt.checkout_request_id}</p>
+              {mpesaPrompt.status === "paid" && mpesaPrompt.transaction_code !== mpesaPrompt.checkout_request_id &&
+                <p>M-Pesa receipt: {mpesaPrompt.transaction_code}</p>}
+              {mpesaPrompt.callback_result_description && <p>Daraja result: {mpesaPrompt.callback_result_description}</p>}
+              {mpesaPrompt.status === "pending" && !mpesaPromptError && <p>Waiting for the callback; this status refreshes automatically.</p>}
+              {mpesaPrompt.status === "paid" && !mpesaPrompt.cleared &&
+                <p>Ask the cashier to review and settle the bill; the payment is confirmed but not yet applied.</p>}
+              {mpesaPrompt.cleared && mpesaPrompt.applied_at &&
+                <p>Bill cleared at {new Date(mpesaPrompt.applied_at).toLocaleString()}.</p>}
+            </div>
+            {mpesaPromptError && <p role="alert" className="mt-2 text-[10px] text-amber-700 dark:text-amber-300">{mpesaPromptError}</p>}
+          </section>
+        )}
 
         <section className="rounded border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-4 space-y-3">
           <div className="flex flex-wrap items-end justify-between gap-3">
@@ -676,9 +805,10 @@ export default function DiningPage() {
                     <div className="border border-dashed border-neutral-300 dark:border-neutral-700 rounded p-3 space-y-2">
                       <div className="text-[10px] font-mono font-semibold uppercase text-neutral-400">M-Pesa self-service</div>
                       <input aria-label="Guest M-Pesa phone" value={payerPhone} onChange={(event) => setPayerPhone(event.target.value)} placeholder="Guest phone number" className="w-full px-2 py-2 text-xs font-mono border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 rounded" />
-                      <button onClick={() => void sendMpesaPrompt()} disabled={!payerPhone.trim() || total <= 0 || sendingMpesaPrompt} className="w-full px-3 py-2 bg-emerald-600 text-white rounded text-[10px] font-semibold disabled:opacity-40">
+                      <button type="button" onClick={() => void sendMpesaPrompt()} disabled={!payerPhone.trim() || total <= 0 || sendingMpesaPrompt} className="w-full px-3 py-2 bg-black text-white dark:bg-white dark:text-black rounded text-[10px] font-semibold disabled:opacity-40">
                         {sendingMpesaPrompt ? "Sending prompt…" : "Send M-Pesa prompt"}
                       </button>
+                      {mpesaPromptError && <p role="alert" className="text-[10px] text-red-600 dark:text-red-400">{mpesaPromptError}</p>}
                       <p className="text-[10px] text-neutral-400">Account reference: {selectedCheck.bill_number}. The bill clears only after a successful callback confirms this bill number and exact amount.</p>
                     </div>
                   )}

@@ -40,6 +40,90 @@ function appendCallbackParams(callbackUrl: string, params: Record<string, string
   return url.toString();
 }
 
+function callbackResult(callbackPayload: unknown): { code: number | null; description: string | null } {
+  if (typeof callbackPayload !== "object" || callbackPayload === null) return { code: null, description: null };
+  const body = "Body" in callbackPayload ? callbackPayload.Body : undefined;
+  if (typeof body !== "object" || body === null || !("stkCallback" in body)) return { code: null, description: null };
+  const callback = body.stkCallback;
+  if (typeof callback !== "object" || callback === null) return { code: null, description: null };
+  const code = "ResultCode" in callback && Number.isFinite(Number(callback.ResultCode))
+    ? Number(callback.ResultCode)
+    : null;
+  const description = "ResultDesc" in callback && typeof callback.ResultDesc === "string"
+    ? callback.ResultDesc.slice(0, 300)
+    : null;
+  return { code, description };
+}
+
+export async function GET(request: Request) {
+  if (!databaseReady()) return NextResponse.json({ success: false, message: "DATABASE_URL is not configured." }, { status: 503 });
+  const auth = await getAuthContext();
+  if (!auth) return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
+
+  const params = new URL(request.url).searchParams;
+  const outletId = params.get("outlet_id");
+  const checkoutRequestId = params.get("checkout_request_id");
+  if (!outletId || !checkoutRequestId) {
+    return NextResponse.json({ success: false, message: "outlet_id and checkout_request_id are required." }, { status: 400 });
+  }
+  const scope = assertOutletAccess(auth.bundle, outletId);
+  if (!scope) return NextResponse.json({ success: false, message: "You are not assigned to this outlet." }, { status: 403 });
+  if (!hasPermission(auth.bundle, scope.propertyId, "restaurant:write")) {
+    return NextResponse.json({ success: false, message: "You do not have permission to view this payment status." }, { status: 403 });
+  }
+
+  const result = await withUserContext(auth.userId, (run) => run<{
+    id: string;
+    bill_reference: string | null;
+    amount: number;
+    transaction_code: string;
+    checkout_request_id: string;
+    payer_phone_suffix: string;
+    status: "pending" | "paid" | "failed" | "timeout";
+    callback_payload: unknown;
+    applied_at: Date | null;
+    updated_at: Date;
+  }>(
+    `SELECT payment.id, payment.bill_reference, payment.amount::float8 AS amount,
+            payment.transaction_code, payment.checkout_request_id,
+            RIGHT(payment.payer_phone, 4) AS payer_phone_suffix,
+            payment.status, payment.callback_payload, payment.applied_at, payment.updated_at
+     FROM daraja_payments payment
+     WHERE payment.property_id = $1 AND payment.outlet_id = $2
+       AND payment.checkout_request_id = $3
+       AND EXISTS (
+         SELECT 1 FROM restaurant_checks check_record
+         WHERE check_record.property_id = payment.property_id
+           AND check_record.outlet_id = payment.outlet_id
+           AND check_record.bill_number = payment.bill_reference
+           AND (check_record.waiter_id = $4 OR $5)
+       )`,
+    [scope.propertyId, outletId, checkoutRequestId, auth.userId,
+      hasPermission(auth.bundle, scope.propertyId, "restaurant:settle")],
+  ));
+  const payment = result.rows[0];
+  if (!payment) return NextResponse.json({ success: false, message: "Payment request was not found for a bill you can access." }, { status: 404 });
+
+  const callback = callbackResult(payment.callback_payload);
+  return NextResponse.json({
+    success: true,
+    payment: {
+      id: payment.id,
+      bill_reference: payment.bill_reference,
+      amount: payment.amount,
+      transaction_code: payment.transaction_code,
+      checkout_request_id: payment.checkout_request_id,
+      payer_phone_suffix: payment.payer_phone_suffix,
+      status: payment.status,
+      callback_result_code: callback.code,
+      callback_result_description: callback.description,
+      cleared: Boolean(payment.applied_at),
+      applied_at: payment.applied_at,
+      updated_at: payment.updated_at,
+    },
+  }, { headers: { "Cache-Control": "no-store" } });
+}
+
 export async function POST(request: Request) {
   const localAuthorized = localApiAuthorized(request);
   const auth = localAuthorized ? null : await getAuthContext();
@@ -199,7 +283,14 @@ export async function POST(request: Request) {
 
   const idempotencyKey = `daraja-prompt:${body.property_id}:${stkResult.CheckoutRequestID}`;
   try {
-    const payment = await query(
+    const payment = await query<{
+      id: string;
+      checkout_request_id: string;
+      transaction_code: string;
+      status: "pending" | "paid" | "failed" | "timeout";
+      amount: number;
+      bill_reference: string;
+    }>(
       `
         INSERT INTO daraja_payments (
           property_id, outlet_id, order_id, bill_reference, amount, transaction_code,
@@ -214,9 +305,8 @@ export async function POST(request: Request) {
           payer_phone = EXCLUDED.payer_phone,
           callback_payload = EXCLUDED.callback_payload,
           updated_at = NOW()
-        RETURNING id, property_id, outlet_id, order_id, bill_reference, amount::float8 AS amount,
-          transaction_code, checkout_request_id, payer_phone, status, callback_payload,
-          applied_at, created_at, updated_at
+        RETURNING id, checkout_request_id, transaction_code, status,
+          amount::float8 AS amount, bill_reference
       `,
       [
         body.property_id,
@@ -230,7 +320,12 @@ export async function POST(request: Request) {
         idempotencyKey,
       ],
     );
-    return NextResponse.json({ success: true, message: "M-Pesa prompt sent. The bill will clear when the callback confirms payment.", payment: payment.rows[0] });
+    const savedPayment = payment.rows[0];
+    return NextResponse.json({
+      success: true,
+      message: `M-Pesa prompt sent to phone ending ${phone.slice(-4)}. Waiting for the customer to approve it.`,
+      payment: { ...savedPayment, payer_phone_suffix: phone.slice(-4), callback_result_code: null, callback_result_description: null, cleared: false, applied_at: null },
+    }, { headers: { "Cache-Control": "no-store" } });
   } catch {
     return NextResponse.json({ success: false, message: "The prompt was sent, but the pending payment could not be stored." }, { status: 500 });
   }
