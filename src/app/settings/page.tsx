@@ -6,15 +6,14 @@ import { useTenantStore } from "@/lib/store/tenant-store";
 import { SlidersHorizontal, Building2, Store, TerminalSquare, ShieldAlert, Check, Smartphone, ReceiptText, BedDouble, Plus } from "lucide-react";
 
 const initialIntegrations = {
-  darajaEnabled: true,
+  darajaEnabled: false,
   darajaEnvironment: "sandbox",
-  darajaShortCode: "174379",
-  darajaConsumerKey: "demo_consumer_key",
-  darajaConsumerSecret: "demo_consumer_secret",
-  darajaPasskey: "b7c...demo",
-  darajaCallbackSecret: "demo_callback_secret",
-  darajaCallbackUrl: "https://payments.example.com/daraja/callback",
-  darajaTimeoutUrl: "https://payments.example.com/daraja/timeout",
+  darajaShortCode: "",
+  darajaConsumerKey: "",
+  darajaConsumerSecret: "",
+  darajaPasskey: "",
+  darajaCallbackUrl: "",
+  darajaTimeoutUrl: "",
   printerEnabled: true,
   printerModel: "Xprinter XP-58II",
   printerConnection: "network",
@@ -30,8 +29,6 @@ export default function PropertySettingsPage() {
     availableStations,
     approvalPolicies,
     updateApprovalPolicy,
-    saveDarajaConfig,
-    darajaConfigs,
     activeOutlet,
     hasPermission,
     loadRoomWorkspace,
@@ -44,6 +41,9 @@ export default function PropertySettingsPage() {
   const [saved, setSaved] = useState(false);
   const [integrations, setIntegrations] = useState(initialIntegrations);
   const [statusText, setStatusText] = useState<string | null>(null);
+  const [darajaSecretsSaved, setDarajaSecretsSaved] = useState(false);
+  const [savingDaraja, setSavingDaraja] = useState(false);
+  const [registeringC2b, setRegisteringC2b] = useState(false);
   const [roomTypeName, setRoomTypeName] = useState("");
   const [roomTypeRate, setRoomTypeRate] = useState("");
   const [roomInput, setRoomInput] = useState({ roomTypeId: "", number: "", floor: "" });
@@ -60,8 +60,6 @@ export default function PropertySettingsPage() {
   });
   const [etimsMessage, setEtimsMessage] = useState<string | null>(null);
   const [savingEtims, setSavingEtims] = useState(false);
-
-  const savedDarajaConfig = darajaConfigs.find((config) => config.property_id === activeProperty?.id && config.outlet_id === activeOutlet?.id) || darajaConfigs.find((config) => config.property_id === activeProperty?.id);
 
   React.useEffect(() => {
     if (!activeOutlet || !canManageSettings) return;
@@ -87,19 +85,42 @@ export default function PropertySettingsPage() {
   }, [activeOutlet?.id, canManageSettings]);
 
   React.useEffect(() => {
-    if (!savedDarajaConfig) return;
+    if (!activeProperty || !activeOutlet || !canManageSettings) return;
+    let cancelled = false;
+    setSaved(false);
+    setStatusText(null);
+    setDarajaSecretsSaved(false);
     setIntegrations({
       ...initialIntegrations,
-      darajaEnabled: savedDarajaConfig.enabled,
-      darajaEnvironment: savedDarajaConfig.environment,
-      darajaShortCode: savedDarajaConfig.short_code,
-      darajaConsumerKey: savedDarajaConfig.consumer_key,
-      darajaConsumerSecret: savedDarajaConfig.consumer_secret,
-      darajaPasskey: savedDarajaConfig.passkey,
-      darajaCallbackUrl: savedDarajaConfig.callback_url,
-      darajaTimeoutUrl: savedDarajaConfig.timeout_url,
+      darajaCallbackUrl: `${window.location.origin}/api/integrations/daraja/callback`,
     });
-  }, [savedDarajaConfig]);
+    void fetch(`/api/integrations/daraja/config?outlet_id=${encodeURIComponent(activeOutlet.id)}`, { credentials: "include" })
+      .then(async (response) => {
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.message || "Could not load Daraja settings.");
+        if (cancelled || !data.config) return;
+        const config = data.config;
+        setIntegrations((current) => ({
+          ...current,
+          darajaEnabled: config.enabled,
+          darajaEnvironment: config.environment,
+          darajaShortCode: config.short_code,
+          darajaConsumerKey: "",
+          darajaConsumerSecret: "",
+          darajaPasskey: "",
+          darajaCallbackUrl: config.callback_url,
+          darajaTimeoutUrl: config.timeout_url || "",
+        }));
+        setDarajaSecretsSaved(Boolean(
+          config.has_consumer_key && config.has_consumer_secret &&
+          config.has_passkey && config.has_callback_secret
+        ));
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) setStatusText(error instanceof Error ? error.message : "Could not load Daraja settings.");
+      });
+    return () => { cancelled = true; };
+  }, [activeProperty?.id, activeOutlet?.id, canManageSettings]);
 
   React.useEffect(() => {
     if (!activeProperty?.id || !canManageRooms) return;
@@ -161,24 +182,66 @@ export default function PropertySettingsPage() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    // LAN admin writes (Daraja/printer config) require a LOCAL_API_TOKEN bearer,
-    // which isn't available from the browser, so these routes aren't called from here.
-    // Settings are saved to local property state until that bridge is built.
-    const result = saveDarajaConfig({
-      property_id: activeProperty?.id,
-      outlet_id: activeOutlet?.id,
-      enabled: integrations.darajaEnabled,
-      environment: integrations.darajaEnvironment as "sandbox" | "production",
-      short_code: integrations.darajaShortCode,
-      consumer_key: integrations.darajaConsumerKey,
-      consumer_secret: integrations.darajaConsumerSecret,
-      passkey: integrations.darajaPasskey,
-      callback_url: integrations.darajaCallbackUrl,
-      timeout_url: integrations.darajaTimeoutUrl,
-    });
-    setStatusText(result.message);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+    if (!activeProperty || !activeOutlet || savingDaraja) return;
+    setSavingDaraja(true);
+    setStatusText(null);
+    try {
+      const response = await fetch("/api/integrations/daraja/config", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          property_id: activeProperty.id,
+          outlet_id: activeOutlet.id,
+          enabled: integrations.darajaEnabled,
+          environment: integrations.darajaEnvironment,
+          short_code: integrations.darajaShortCode,
+          consumer_key: integrations.darajaConsumerKey,
+          consumer_secret: integrations.darajaConsumerSecret,
+          passkey: integrations.darajaPasskey,
+          callback_url: integrations.darajaCallbackUrl,
+          timeout_url: integrations.darajaTimeoutUrl,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.message || "Daraja settings could not be saved.");
+      setDarajaSecretsSaved(true);
+      setIntegrations((current) => ({
+        ...current,
+        darajaConsumerKey: "",
+        darajaConsumerSecret: "",
+        darajaPasskey: "",
+      }));
+      setStatusText(result.message);
+      setSaved(true);
+      window.setTimeout(() => setSaved(false), 2500);
+    } catch (error) {
+      setStatusText(error instanceof Error ? error.message : "Daraja settings could not be saved.");
+      setSaved(false);
+    } finally {
+      setSavingDaraja(false);
+    }
+  };
+
+  const registerC2bUrls = async () => {
+    if (!activeOutlet || registeringC2b) return;
+    setRegisteringC2b(true);
+    setStatusText(null);
+    try {
+      const response = await fetch("/api/integrations/daraja/c2b/register", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ outlet_id: activeOutlet.id }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.message || "C2B URLs could not be registered.");
+      setStatusText(result.message);
+    } catch (error) {
+      setStatusText(error instanceof Error ? error.message : "C2B URLs could not be registered.");
+    } finally {
+      setRegisteringC2b(false);
+    }
   };
 
   return (
@@ -223,7 +286,7 @@ export default function PropertySettingsPage() {
           </form>
         )}
 
-        <form onSubmit={handleSave} className="space-y-6">
+        <div className="space-y-6">
           <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded p-5 space-y-4">
             <h3 className="text-sm font-semibold flex items-center gap-2">
               <Building2 className="w-4 h-4" />
@@ -276,12 +339,16 @@ export default function PropertySettingsPage() {
             </div>
           </div>
 
-          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded p-5 space-y-4">
+          <form onSubmit={handleSave} className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded p-5 space-y-4">
             <h3 className="text-sm font-semibold flex items-center gap-2">
               <Smartphone className="w-4 h-4" />
               M-Pesa / Daraja Configuration
             </h3>
-            <p className="text-xs text-neutral-500">Daraja credentials are kept in the tenant config panel and the POS continues to accept a transaction code for manual confirmation until the external payment app callbacks in.</p>
+            <p className="text-xs text-neutral-500">
+              Credentials are encrypted before storage. Leave a saved credential blank to keep it unchanged.
+              STK prompts and bill clearance require a public HTTPS callback URL.
+            </p>
+            {!activeOutlet && <p className="text-xs text-amber-700">Select an outlet before configuring M-Pesa.</p>}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
               <label className="space-y-1 md:col-span-2">
                 <span className="text-neutral-500 font-medium">Gateway enabled</span>
@@ -296,34 +363,51 @@ export default function PropertySettingsPage() {
               </div>
               <div className="space-y-1">
                 <label className="text-neutral-500 font-medium">Shortcode</label>
-                <input value={integrations.darajaShortCode} onChange={(event) => setIntegrations((prev) => ({ ...prev, darajaShortCode: event.target.value }))} className="w-full p-2 border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 rounded" />
+                <input required={integrations.darajaEnabled} inputMode="numeric" value={integrations.darajaShortCode} onChange={(event) => setIntegrations((prev) => ({ ...prev, darajaShortCode: event.target.value }))} className="w-full p-2 border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 rounded" />
               </div>
               <div className="space-y-1">
                 <label className="text-neutral-500 font-medium">Consumer key</label>
-                <input value={integrations.darajaConsumerKey} onChange={(event) => setIntegrations((prev) => ({ ...prev, darajaConsumerKey: event.target.value }))} className="w-full p-2 border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 rounded" />
+                <input type="password" autoComplete="new-password" required={integrations.darajaEnabled && !darajaSecretsSaved} placeholder={darajaSecretsSaved ? "Saved securely; leave blank to keep" : "Required to enable Daraja"} value={integrations.darajaConsumerKey} onChange={(event) => setIntegrations((prev) => ({ ...prev, darajaConsumerKey: event.target.value }))} className="w-full p-2 border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 rounded" />
               </div>
               <div className="space-y-1">
                 <label className="text-neutral-500 font-medium">Consumer secret</label>
-                <input type="password" value={integrations.darajaConsumerSecret} onChange={(event) => setIntegrations((prev) => ({ ...prev, darajaConsumerSecret: event.target.value }))} className="w-full p-2 border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 rounded" />
+                <input type="password" autoComplete="new-password" required={integrations.darajaEnabled && !darajaSecretsSaved} placeholder={darajaSecretsSaved ? "Saved securely; leave blank to keep" : "Required to enable Daraja"} value={integrations.darajaConsumerSecret} onChange={(event) => setIntegrations((prev) => ({ ...prev, darajaConsumerSecret: event.target.value }))} className="w-full p-2 border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 rounded" />
               </div>
               <div className="space-y-1">
                 <label className="text-neutral-500 font-medium">Passkey</label>
-                <input value={integrations.darajaPasskey} onChange={(event) => setIntegrations((prev) => ({ ...prev, darajaPasskey: event.target.value }))} className="w-full p-2 border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 rounded" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-neutral-500 font-medium">Callback signing secret</label>
-                <input type="password" value={integrations.darajaCallbackSecret} onChange={(event) => setIntegrations((prev) => ({ ...prev, darajaCallbackSecret: event.target.value }))} className="w-full p-2 border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 rounded" />
+                <input type="password" autoComplete="new-password" required={integrations.darajaEnabled && !darajaSecretsSaved} placeholder={darajaSecretsSaved ? "Saved securely; leave blank to keep" : "Required to enable Daraja"} value={integrations.darajaPasskey} onChange={(event) => setIntegrations((prev) => ({ ...prev, darajaPasskey: event.target.value }))} className="w-full p-2 border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 rounded" />
               </div>
               <div className="space-y-1 md:col-span-2">
                 <label className="text-neutral-500 font-medium">Callback URL</label>
-                <input value={integrations.darajaCallbackUrl} onChange={(event) => setIntegrations((prev) => ({ ...prev, darajaCallbackUrl: event.target.value }))} className="w-full p-2 border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 rounded" />
+                <input required={integrations.darajaEnabled} type="url" placeholder="https://your-public-domain/api/integrations/daraja/callback" value={integrations.darajaCallbackUrl} onChange={(event) => setIntegrations((prev) => ({ ...prev, darajaCallbackUrl: event.target.value }))} className="w-full p-2 border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 rounded" />
+                <span className="block text-[10px] text-neutral-500">The server fills this from the current host. Ensure it is publicly reachable over HTTPS.</span>
               </div>
               <div className="space-y-1 md:col-span-2">
                 <label className="text-neutral-500 font-medium">Timeout URL</label>
                 <input value={integrations.darajaTimeoutUrl} onChange={(event) => setIntegrations((prev) => ({ ...prev, darajaTimeoutUrl: event.target.value }))} className="w-full p-2 border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 rounded" />
               </div>
             </div>
-          </div>
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                disabled={!activeOutlet || savingDaraja}
+                className="rounded bg-black px-4 py-2 text-xs font-semibold text-white disabled:opacity-40 dark:bg-white dark:text-black"
+              >
+                {savingDaraja ? "Saving Daraja settings…" : "Save Daraja settings"}
+              </button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void registerC2bUrls()}
+                disabled={!activeOutlet || !integrations.darajaEnabled || !darajaSecretsSaved || registeringC2b}
+                className="rounded border border-neutral-300 px-3 py-2 text-xs font-semibold disabled:opacity-40 dark:border-neutral-700"
+              >
+                {registeringC2b ? "Registering C2B URLs…" : "Register C2B URLs"}
+              </button>
+              <span className="text-[10px] text-neutral-500">Register once after saving to receive Paybill payments and clear matching bills.</span>
+            </div>
+          </form>
 
           <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded p-5 space-y-4">
             <h3 className="text-sm font-semibold flex items-center gap-2">
@@ -379,12 +463,7 @@ export default function PropertySettingsPage() {
             </div>
           </div>
 
-          <div className="flex justify-end">
-            <button type="submit" className="px-5 py-2 bg-black text-white dark:bg-white dark:text-black font-semibold text-xs rounded hover:opacity-90 transition-opacity">
-              Save Configuration
-            </button>
-          </div>
-        </form>
+        </div>
 
         {canManageRooms && (
           <section className="space-y-4">

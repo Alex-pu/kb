@@ -85,6 +85,7 @@ export default function DiningPage() {
   const [tenders, setTenders] = useState<Record<TenderType, string>>({ cash: "", mpesa: "", card: "" });
   const [mpesaReference, setMpesaReference] = useState("");
   const [payerPhone, setPayerPhone] = useState("");
+  const [sendingMpesaPrompt, setSendingMpesaPrompt] = useState(false);
   const [roomChargeBookingId, setRoomChargeBookingId] = useState("");
   const [activeRoomStays, setActiveRoomStays] = useState<RestaurantRoomStay[]>([]);
   const [message, setMessage] = useState<string | null>(null);
@@ -201,6 +202,7 @@ export default function DiningPage() {
   const cashChangeAllowed = Number(tenders.cash) >= total &&
     Number(tenders.mpesa) === 0 && Number(tenders.card) === 0;
   const settlementAmountValid = Math.abs(tenderTotal - total) < 0.01 || cashChangeAllowed;
+  const mpesaReferenceValid = Number(tenders.mpesa) <= 0 || Boolean(mpesaReference.trim());
   const hasUnsentItems = orderLines.some((line) => !line.sentToKitchen);
   const tablesByArea = useMemo(() => floorAreas.map((area) => ({
     area,
@@ -256,7 +258,8 @@ export default function DiningPage() {
   };
 
   const sendMpesaPrompt = async () => {
-    if (!selectedTableId || !selectedCheck || !activeProperty || !activeOutlet || !payerPhone.trim()) return;
+    if (!selectedTableId || !selectedCheck || !activeProperty || !activeOutlet || !payerPhone.trim() || sendingMpesaPrompt) return;
+    setSendingMpesaPrompt(true);
     try {
       const response = await fetch("/api/integrations/daraja/prompt", {
         method: "POST",
@@ -278,6 +281,8 @@ export default function DiningPage() {
       setMessage(responseMessage);
     } catch {
       setMessage("Could not reach the server. The M-Pesa prompt status is unknown; check before retrying.");
+    } finally {
+      setSendingMpesaPrompt(false);
     }
   };
 
@@ -671,8 +676,8 @@ export default function DiningPage() {
                     <div className="border border-dashed border-neutral-300 dark:border-neutral-700 rounded p-3 space-y-2">
                       <div className="text-[10px] font-mono font-semibold uppercase text-neutral-400">M-Pesa self-service</div>
                       <input aria-label="Guest M-Pesa phone" value={payerPhone} onChange={(event) => setPayerPhone(event.target.value)} placeholder="Guest phone number" className="w-full px-2 py-2 text-xs font-mono border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 rounded" />
-                      <button onClick={() => void sendMpesaPrompt()} disabled={!payerPhone.trim() || total <= 0} className="w-full px-3 py-2 bg-emerald-600 text-white rounded text-[10px] font-semibold disabled:opacity-40">
-                        Send M-Pesa prompt
+                      <button onClick={() => void sendMpesaPrompt()} disabled={!payerPhone.trim() || total <= 0 || sendingMpesaPrompt} className="w-full px-3 py-2 bg-emerald-600 text-white rounded text-[10px] font-semibold disabled:opacity-40">
+                        {sendingMpesaPrompt ? "Sending prompt…" : "Send M-Pesa prompt"}
                       </button>
                       <p className="text-[10px] text-neutral-400">Account reference: {selectedCheck.bill_number}. The bill clears only after a successful callback confirms this bill number and exact amount.</p>
                     </div>
@@ -734,12 +739,17 @@ export default function DiningPage() {
                         ))}
                       </div>
                       {Number(tenders.mpesa) > 0 && (
-                        <input aria-label="M-Pesa transaction code" value={mpesaReference} onChange={(event) => setMpesaReference(event.target.value.toUpperCase())} placeholder="Transaction code (verified callback required)" className="w-full px-2 py-2 text-xs font-mono border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 rounded" />
+                        <>
+                          <input aria-label="M-Pesa transaction code" aria-describedby="mpesa-reference-help" value={mpesaReference} onChange={(event) => setMpesaReference(event.target.value.trim().toUpperCase())} placeholder="M-Pesa transaction code" className="w-full px-2 py-2 text-xs font-mono border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 rounded" />
+                          <p id="mpesa-reference-help" className="text-[10px] text-neutral-500">
+                            The transaction must first arrive through a successful Daraja callback; a typed code alone cannot verify payment.
+                          </p>
+                        </>
                       )}
                       <div className={`text-xs font-mono ${settlementAmountValid ? "text-emerald-600" : "text-neutral-500"}`}>
                         Received KSh {tenderTotal.toFixed(2)} • {tenderTotal >= total ? `Change KSh ${(tenderTotal - total).toFixed(2)}` : `Due KSh ${(total - tenderTotal).toFixed(2)}`}
                       </div>
-                      <button onClick={() => void submitSettle()} disabled={!settlementAmountValid || tenderTotal <= 0} className="w-full py-2.5 bg-black text-white dark:bg-white dark:text-black disabled:opacity-30 disabled:cursor-not-allowed rounded text-xs font-bold flex items-center justify-center gap-2">
+                      <button onClick={() => void submitSettle()} disabled={!settlementAmountValid || !mpesaReferenceValid || tenderTotal <= 0} className="w-full py-2.5 bg-black text-white dark:bg-white dark:text-black disabled:opacity-30 disabled:cursor-not-allowed rounded text-xs font-bold flex items-center justify-center gap-2">
                         <WalletCards className="w-4 h-4" /> Record payment & clear bill
                       </button>
                     </div>

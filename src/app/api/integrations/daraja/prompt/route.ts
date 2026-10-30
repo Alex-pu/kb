@@ -55,8 +55,11 @@ export async function POST(request: Request) {
 
   const amount = Number(body.amount || 0);
   const phone = normalizePhone(body.payer_phone || "");
-  if (!body.property_id || !body.order_id || !body.bill_reference || amount <= 0 || !Number.isInteger(amount) || !phone) {
+  if (!body.property_id || !body.order_id || !body.bill_reference || amount <= 0 || !phone) {
     return NextResponse.json({ success: false, message: "property_id, order_id, bill_reference, amount, and a valid payer_phone are required." }, { status: 400 });
+  }
+  if (!Number.isInteger(amount)) {
+    return NextResponse.json({ success: false, message: "M-Pesa STK prompts require a whole-number amount in Kenyan shillings." }, { status: 400 });
   }
   if (!localAuthorized && auth) {
     const outletId = body.outlet_id || "";
@@ -107,8 +110,8 @@ export async function POST(request: Request) {
       FROM daraja_shop_configs
       WHERE property_id = $1
         AND enabled = TRUE
-        AND ($2::uuid IS NULL OR outlet_id = $2::uuid)
-      ORDER BY outlet_id NULLS LAST
+        AND ($2::uuid IS NULL OR outlet_id = $2::uuid OR outlet_id IS NULL)
+      ORDER BY CASE WHEN outlet_id = $2::uuid THEN 0 ELSE 1 END
       LIMIT 1
     `,
     [body.property_id, body.outlet_id || null],
@@ -132,9 +135,15 @@ export async function POST(request: Request) {
   }
 
   const baseUrl = darajaBaseUrl(config.environment);
-  const tokenResponse = await fetch(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
-    headers: { Authorization: `Basic ${Buffer.from(`${consumerKey}:${consumerSecret}`).toString("base64")}` },
-  });
+  let tokenResponse: Response;
+  try {
+    tokenResponse = await fetch(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
+      headers: { Authorization: `Basic ${Buffer.from(`${consumerKey}:${consumerSecret}`).toString("base64")}` },
+    });
+  } catch (error) {
+    console.error("Daraja OAuth request failed for an STK prompt.", error);
+    return NextResponse.json({ success: false, message: "Could not reach Daraja to send the M-Pesa prompt." }, { status: 502 });
+  }
   const tokenPayload = await tokenResponse.json().catch(() => ({})) as { access_token?: string; errorMessage?: string };
   if (!tokenResponse.ok || !tokenPayload.access_token) {
     return NextResponse.json({ success: false, message: tokenPayload.errorMessage || "Daraja access token request failed." }, { status: 502 });
@@ -162,14 +171,20 @@ export async function POST(request: Request) {
     TransactionDesc: "Bill payment",
   };
 
-  const stkResponse = await fetch(`${baseUrl}/mpesa/stkpush/v1/processrequest`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${tokenPayload.access_token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(stkPayload),
-  });
+  let stkResponse: Response;
+  try {
+    stkResponse = await fetch(`${baseUrl}/mpesa/stkpush/v1/processrequest`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${tokenPayload.access_token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(stkPayload),
+    });
+  } catch (error) {
+    console.error("Daraja STK push request failed.", error);
+    return NextResponse.json({ success: false, message: "Could not reach Daraja to send the M-Pesa prompt." }, { status: 502 });
+  }
   const stkResult = await stkResponse.json().catch(() => ({})) as {
     MerchantRequestID?: string;
     CheckoutRequestID?: string;

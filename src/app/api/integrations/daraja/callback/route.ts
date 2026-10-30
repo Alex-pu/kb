@@ -28,6 +28,7 @@ interface NormalizedCallback {
   payer_phone?: string;
   status: "paid" | "failed" | "timeout";
   callback_payload: Record<string, unknown>;
+  business_short_code?: string;
 }
 
 interface DarajaPaymentRow {
@@ -280,13 +281,16 @@ function normalizeCallback(raw: DarajaCallbackBody & Record<string, unknown>, re
     return {
       property_id: propertyId,
       outlet_id: url.searchParams.get("outlet_id") || raw.outlet_id,
-      order_id: raw.order_id,
       bill_reference: typeof raw.BillRefNumber === "string" ? raw.BillRefNumber.trim() : raw.bill_reference,
       amount: Number(raw.TransAmount || raw.amount || 0),
       transaction_code: transactionCode,
+      order_id: raw.order_id || (typeof raw.BillRefNumber === "string" && /^[0-9]{6}$/.test(raw.BillRefNumber.trim())
+        ? raw.BillRefNumber.trim()
+        : undefined),
       payer_phone: raw.MSISDN ? String(raw.MSISDN) : raw.payer_phone,
       status: "paid",
       callback_payload: raw,
+      business_short_code: raw.BusinessShortCode ? String(raw.BusinessShortCode) : undefined,
     };
   }
 
@@ -323,9 +327,17 @@ export async function POST(request: Request) {
 
   if (!databaseReady()) return NextResponse.json({ success: false, message: "DATABASE_URL is not configured." }, { status: 503 });
 
-  const configResult = await query<{ callback_secret_encrypted: string }>(
-    "SELECT callback_secret_encrypted FROM daraja_shop_configs WHERE property_id = $1 AND enabled = TRUE ORDER BY outlet_id NULLS LAST LIMIT 1",
-    [normalized.property_id],
+  const configResult = await query<{
+    callback_secret_encrypted: string;
+    short_code: string;
+  }>(
+    `SELECT callback_secret_encrypted, short_code
+     FROM daraja_shop_configs
+     WHERE property_id = $1 AND enabled = TRUE
+       AND ($2::uuid IS NULL OR outlet_id = $2::uuid OR outlet_id IS NULL)
+     ORDER BY CASE WHEN outlet_id IS NOT DISTINCT FROM $2::uuid THEN 0 ELSE 1 END
+     LIMIT 1`,
+    [normalized.property_id, normalized.outlet_id || null],
   );
   const config = configResult.rows[0];
 
@@ -345,6 +357,9 @@ export async function POST(request: Request) {
   if (!hasValidSecretParam && !isValidSignature(rawBody, request.headers.get("x-daraja-signature"), callbackSecret)) {
     return NextResponse.json({ success: false, message: "Invalid callback signature." }, { status: 401 });
   }
+  if (normalized.business_short_code && normalized.business_short_code !== config.short_code) {
+    return NextResponse.json({ success: false, message: "C2B callback shortcode does not match the property configuration." }, { status: 409 });
+  }
 
   if (normalized.bill_reference?.startsWith("B")) {
     const legacyBill = await query<{ bill_number: string }>(
@@ -360,6 +375,9 @@ export async function POST(request: Request) {
       normalized.bill_reference = currentBillNumber;
       if (normalized.order_id === legacyBillNumber) normalized.order_id = currentBillNumber;
     }
+  }
+  if (!normalized.order_id && normalized.bill_reference && /^[0-9]{6}$/.test(normalized.bill_reference)) {
+    normalized.order_id = normalized.bill_reference;
   }
 
   let existingPaymentId: string | undefined;
@@ -449,6 +467,9 @@ export async function POST(request: Request) {
     }
   }
 
+  if (typeof body.TransID === "string" && body.TransID.trim()) {
+    return NextResponse.json({ ResultCode: 0, ResultDesc: "Accepted" });
+  }
   return NextResponse.json({
     success: true,
     accepted: true,
