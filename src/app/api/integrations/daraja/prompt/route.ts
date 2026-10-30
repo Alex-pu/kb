@@ -179,7 +179,22 @@ export async function POST(request: Request) {
     }
   }
 
-  const configResult = await query<{
+  const configSql = `
+    SELECT environment, short_code, consumer_key_encrypted, consumer_secret_encrypted,
+      passkey_encrypted, callback_secret_encrypted, callback_url
+    FROM daraja_shop_configs
+    WHERE property_id = $1
+      AND enabled = TRUE
+      AND ($2::uuid IS NULL OR outlet_id = $2::uuid OR outlet_id IS NULL)
+    ORDER BY CASE WHEN outlet_id = $2::uuid THEN 0 ELSE 1 END
+    LIMIT 1
+  `;
+  const configValues = [body.property_id, body.outlet_id || null];
+  const loadConfig = <T extends import("pg").QueryResultRow>(sql: string, values?: unknown[]) =>
+    auth
+      ? withUserContext(auth.userId, (run) => run<T>(sql, values))
+      : query<T>(sql, values);
+  const configResult = await loadConfig<{
     environment: "sandbox" | "production";
     short_code: string;
     consumer_key_encrypted: string;
@@ -188,17 +203,8 @@ export async function POST(request: Request) {
     callback_secret_encrypted: string;
     callback_url: string;
   }>(
-    `
-      SELECT environment, short_code, consumer_key_encrypted, consumer_secret_encrypted,
-        passkey_encrypted, callback_secret_encrypted, callback_url
-      FROM daraja_shop_configs
-      WHERE property_id = $1
-        AND enabled = TRUE
-        AND ($2::uuid IS NULL OR outlet_id = $2::uuid OR outlet_id IS NULL)
-      ORDER BY CASE WHEN outlet_id = $2::uuid THEN 0 ELSE 1 END
-      LIMIT 1
-    `,
-    [body.property_id, body.outlet_id || null],
+    configSql,
+    configValues,
   );
   const config = configResult.rows[0];
   if (!config) {
