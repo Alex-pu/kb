@@ -20,6 +20,37 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 
 See `.env.example` for the full list of variables.
 
+### Daraja credentials in the server environment (single outlet)
+
+For a single-property deployment, Daraja can be configured from the server's ignored `.env.local` file instead of the Property Settings form. This configuration is explicitly bound to one property and outlet; it is not returned to the browser and takes precedence over database Daraja settings for that exact pair. Do not commit this file or copy its secrets into chat.
+
+On the server, find the IDs for the property and its restaurant outlet:
+
+```bash
+sudo -u postgres psql -d kore_bench -c "
+SELECT p.id AS property_id, o.id AS outlet_id, p.name AS property, o.name AS outlet
+FROM properties p
+JOIN outlets o ON o.property_id = p.id
+ORDER BY p.name, o.name;"
+```
+
+Set the following values in the server's `.env.local`, replacing the IDs and Daraja values with your own:
+
+```env
+DARAJA_PROPERTY_ID=<property UUID>
+DARAJA_OUTLET_ID=<restaurant outlet UUID>
+DARAJA_ENABLED=true
+DARAJA_ENVIRONMENT=sandbox
+DARAJA_SHORT_CODE=<Daraja shortcode>
+DARAJA_CONSUMER_KEY=<Daraja consumer key>
+DARAJA_CONSUMER_SECRET=<Daraja consumer secret>
+DARAJA_PASSKEY=<Daraja STK passkey>
+DARAJA_CALLBACK_URL=https://your-domain.example/api/integrations/daraja/callback
+DARAJA_CALLBACK_SECRET=<unique random secret of at least 32 characters>
+```
+
+Generate a callback secret on the server with `openssl rand -hex 32`. Use `production` only with production Daraja credentials. After saving the file, restrict access with `chmod 600 .env.local`, rebuild the app, and restart its systemd service. Keep the callback secret private and stable so pending Daraja requests can still authenticate their callbacks. This environment configuration supports the STK prompt and its callback; use outlet-scoped database settings for multi-outlet deployments.
+
 ## 2. Apply migrations
 
 SQL schema files live in `db/migrations/*.sql`, applied in filename order and tracked in a `schema_migrations` table so re-runs are safe:

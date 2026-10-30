@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { assertOutletAccess, getAuthContext, hasPermission } from "@/lib/auth/require-session";
 import { databaseReady, localApiAuthorized, query, withUserContext } from "@/lib/db/postgres";
+import { getDarajaEnvironmentConfig } from "@/lib/integrations/daraja/environment-config";
 import { decryptSecret } from "@/lib/supabase/secret-crypto";
 
 export const runtime = "nodejs";
@@ -179,22 +180,19 @@ export async function POST(request: Request) {
     }
   }
 
-  const configSql = `
-    SELECT environment, short_code, consumer_key_encrypted, consumer_secret_encrypted,
-      passkey_encrypted, callback_secret_encrypted, callback_url
-    FROM daraja_shop_configs
-    WHERE property_id = $1
-      AND enabled = TRUE
-      AND ($2::uuid IS NULL OR outlet_id = $2::uuid OR outlet_id IS NULL)
-    ORDER BY CASE WHEN outlet_id = $2::uuid THEN 0 ELSE 1 END
-    LIMIT 1
-  `;
-  const configValues = [body.property_id, body.outlet_id || null];
+  let environmentConfig: ReturnType<typeof getDarajaEnvironmentConfig>;
+  try {
+    environmentConfig = getDarajaEnvironmentConfig(body.property_id, body.outlet_id || "");
+  } catch (error) {
+    console.error("Invalid Daraja environment configuration.", error);
+    return NextResponse.json({ success: false, message: "The server's Daraja environment configuration is incomplete or invalid." }, { status: 503 });
+  }
+
   const loadConfig = <T extends import("pg").QueryResultRow>(sql: string, values?: unknown[]) =>
     auth
       ? withUserContext(auth.userId, (run) => run<T>(sql, values))
       : query<T>(sql, values);
-  const configResult = await loadConfig<{
+  const configResult = environmentConfig ? null : await loadConfig<{
     environment: "sandbox" | "production";
     short_code: string;
     consumer_key_encrypted: string;
@@ -203,28 +201,37 @@ export async function POST(request: Request) {
     callback_secret_encrypted: string;
     callback_url: string;
   }>(
-    configSql,
-    configValues,
+    `SELECT environment, short_code, consumer_key_encrypted, consumer_secret_encrypted,
+            passkey_encrypted, callback_secret_encrypted, callback_url
+     FROM daraja_shop_configs
+     WHERE property_id = $1
+       AND enabled = TRUE
+       AND ($2::uuid IS NULL OR outlet_id = $2::uuid OR outlet_id IS NULL)
+     ORDER BY CASE WHEN outlet_id = $2::uuid THEN 0 ELSE 1 END
+     LIMIT 1`,
+    [body.property_id, body.outlet_id || null],
   );
-  const config = configResult.rows[0];
-  if (!config) {
+  const config = configResult?.rows[0];
+  if (!environmentConfig && !config) {
     return NextResponse.json({ success: false, message: "No enabled Daraja configuration exists for this property." }, { status: 404 });
   }
 
-  let consumerKey: string;
-  let consumerSecret: string;
-  let passkey: string;
-  let callbackSecret: string;
-  try {
-    consumerKey = decryptSecret(config.consumer_key_encrypted);
-    consumerSecret = decryptSecret(config.consumer_secret_encrypted);
-    passkey = decryptSecret(config.passkey_encrypted);
-    callbackSecret = decryptSecret(config.callback_secret_encrypted);
-  } catch {
-    return NextResponse.json({ success: false, message: "Daraja credentials are not configured correctly." }, { status: 500 });
+  let consumerKey = environmentConfig?.consumer_key ?? "";
+  let consumerSecret = environmentConfig?.consumer_secret ?? "";
+  let passkey = environmentConfig?.passkey ?? "";
+  let callbackSecret = environmentConfig?.callback_secret ?? "";
+  if (!environmentConfig && config) {
+    try {
+      consumerKey = decryptSecret(config.consumer_key_encrypted);
+      consumerSecret = decryptSecret(config.consumer_secret_encrypted);
+      passkey = decryptSecret(config.passkey_encrypted);
+      callbackSecret = decryptSecret(config.callback_secret_encrypted);
+    } catch {
+      return NextResponse.json({ success: false, message: "Daraja credentials are not configured correctly." }, { status: 500 });
+    }
   }
 
-  const baseUrl = darajaBaseUrl(config.environment);
+  const baseUrl = darajaBaseUrl(environmentConfig?.environment ?? config!.environment);
   let tokenResponse: Response;
   try {
     tokenResponse = await fetch(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
@@ -242,15 +249,15 @@ export async function POST(request: Request) {
   const requestTimestamp = timestamp();
   const accountReference = body.bill_reference.replace(/[^a-zA-Z0-9]/g, "").slice(0, 12) || "BILL";
   const stkPayload = {
-    BusinessShortCode: config.short_code,
-    Password: Buffer.from(`${config.short_code}${passkey}${requestTimestamp}`).toString("base64"),
+    BusinessShortCode: environmentConfig?.short_code ?? config!.short_code,
+    Password: Buffer.from(`${environmentConfig?.short_code ?? config!.short_code}${passkey}${requestTimestamp}`).toString("base64"),
     Timestamp: requestTimestamp,
     TransactionType: "CustomerPayBillOnline",
     Amount: Math.round(amount),
     PartyA: phone,
-    PartyB: config.short_code,
+    PartyB: environmentConfig?.short_code ?? config!.short_code,
     PhoneNumber: phone,
-    CallBackURL: appendCallbackParams(config.callback_url, {
+    CallBackURL: appendCallbackParams(environmentConfig?.callback_url ?? config!.callback_url, {
       property_id: body.property_id,
       outlet_id: body.outlet_id,
       order_id: body.order_id,

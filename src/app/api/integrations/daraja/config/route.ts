@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { randomBytes } from "node:crypto";
 import { assertOutletAccess, getAuthContext, hasPermission } from "@/lib/auth/require-session";
 import { databaseReady, localApiAuthorized, query, withUserContext } from "@/lib/db/postgres";
+import { getDarajaEnvironmentConfig } from "@/lib/integrations/daraja/environment-config";
 import { encryptSecret } from "@/lib/supabase/secret-crypto";
 
 export const runtime = "nodejs";
@@ -39,6 +40,31 @@ export async function GET(request: Request) {
   if (!scope) return NextResponse.json({ success: false, message: "You are not assigned to this outlet." }, { status: 403 });
   if (!hasPermission(auth.bundle, scope.propertyId, "settings:manage")) {
     return NextResponse.json({ success: false, message: "You do not have permission to manage integration settings." }, { status: 403 });
+  }
+
+  let environmentConfig: ReturnType<typeof getDarajaEnvironmentConfig>;
+  try {
+    environmentConfig = getDarajaEnvironmentConfig(scope.propertyId, outletId);
+  } catch (error) {
+    console.error("Invalid Daraja environment configuration.", error);
+    return NextResponse.json({ success: false, message: "The server's Daraja environment configuration is incomplete or invalid." }, { status: 503 });
+  }
+  if (environmentConfig) {
+    return NextResponse.json({
+      success: true,
+      source: "environment",
+      config: {
+        enabled: true,
+        environment: environmentConfig.environment,
+        short_code: environmentConfig.short_code,
+        callback_url: environmentConfig.callback_url,
+        timeout_url: "",
+        has_consumer_key: true,
+        has_consumer_secret: true,
+        has_passkey: true,
+        has_callback_secret: true,
+      },
+    }, { headers: { "Cache-Control": "no-store" } });
   }
 
   const result = await withUserContext(auth.userId, (run) => run<{
