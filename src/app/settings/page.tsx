@@ -351,7 +351,7 @@ export default function PropertySettingsPage() {
               type="button"
               onClick={() => void handleSave()}
               disabled={!activeOutlet || savingDaraja}
-              className="rounded bg-emerald-700 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded bg-black px-4 py-2 text-xs font-semibold text-white disabled:opacity-40 dark:bg-white dark:text-black"
             >
               {savingDaraja ? "Saving Daraja settings…" : "Save Daraja credentials"}
             </button>
