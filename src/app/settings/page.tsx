@@ -42,9 +42,12 @@ export default function PropertySettingsPage() {
   const [integrations, setIntegrations] = useState(initialIntegrations);
   const [statusText, setStatusText] = useState<string | null>(null);
   const [darajaSecretsSaved, setDarajaSecretsSaved] = useState(false);
-  const [darajaManagedByEnvironment, setDarajaManagedByEnvironment] = useState(false);
   const [savingDaraja, setSavingDaraja] = useState(false);
   const [registeringC2b, setRegisteringC2b] = useState(false);
+  const [testPhone, setTestPhone] = useState("");
+  const [testAmount, setTestAmount] = useState("1");
+  const [testingDaraja, setTestingDaraja] = useState(false);
+  const [testDarajaMessage, setTestDarajaMessage] = useState<string | null>(null);
   const [roomTypeName, setRoomTypeName] = useState("");
   const [roomTypeRate, setRoomTypeRate] = useState("");
   const [roomInput, setRoomInput] = useState({ roomTypeId: "", number: "", floor: "" });
@@ -91,7 +94,7 @@ export default function PropertySettingsPage() {
     setSaved(false);
     setStatusText(null);
     setDarajaSecretsSaved(false);
-    setDarajaManagedByEnvironment(false);
+    setTestDarajaMessage(null);
     setIntegrations({
       ...initialIntegrations,
       darajaCallbackUrl: `${window.location.origin}/api/integrations/daraja/callback`,
@@ -102,7 +105,6 @@ export default function PropertySettingsPage() {
         if (!response.ok || !data.success) throw new Error(data.message || "Could not load Daraja settings.");
         if (cancelled || !data.config) return;
         const config = data.config;
-        setDarajaManagedByEnvironment(data.source === "environment");
         setIntegrations((current) => ({
           ...current,
           darajaEnabled: config.enabled,
@@ -246,6 +248,31 @@ export default function PropertySettingsPage() {
     }
   };
 
+  const testDarajaPrompt = async () => {
+    if (!activeOutlet || testingDaraja) return;
+    setTestingDaraja(true);
+    setTestDarajaMessage(null);
+    try {
+      const response = await fetch("/api/integrations/daraja/test-prompt", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          outlet_id: activeOutlet.id,
+          payer_phone: testPhone,
+          amount: Number(testAmount),
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.message || "Daraja endpoint test failed.");
+      setTestDarajaMessage(result.message);
+    } catch (error) {
+      setTestDarajaMessage(error instanceof Error ? error.message : "Could not test the Daraja endpoint.");
+    } finally {
+      setTestingDaraja(false);
+    }
+  };
+
   return (
     <DashboardShell>
       <div className="max-w-5xl mx-auto space-y-6">
@@ -350,57 +377,51 @@ export default function PropertySettingsPage() {
               Credentials are encrypted before storage. Leave a saved credential blank to keep it unchanged.
               STK prompts and bill clearance require a public HTTPS callback URL.
             </p>
-            {darajaManagedByEnvironment ? (
-              <p role="status" className="rounded border border-neutral-200 bg-neutral-50 p-3 text-xs dark:border-neutral-700 dark:bg-neutral-800">
-              Daraja is managed by this server&apos;s environment configuration for the selected outlet. Edit the server&apos;s `.env.local` and restart the app to change it. You can still register the C2B URLs below.
-              </p>
-            ) : (
-              <button
-                type="button"
-                onClick={() => void handleSave()}
-                disabled={!activeOutlet || savingDaraja}
-                className="rounded bg-black px-4 py-2 text-xs font-semibold text-white disabled:opacity-40 dark:bg-white dark:text-black"
-              >
-                {savingDaraja ? "Saving Daraja settings…" : "Save Daraja credentials"}
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => void handleSave()}
+              disabled={!activeOutlet || savingDaraja}
+              className="rounded bg-black px-4 py-2 text-xs font-semibold text-white disabled:opacity-40 dark:bg-white dark:text-black"
+            >
+              {savingDaraja ? "Saving Daraja settings…" : "Save Daraja credentials"}
+            </button>
             {!activeOutlet && <p className="text-xs text-amber-700">Select an outlet before configuring M-Pesa.</p>}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
               <label className="space-y-1 md:col-span-2">
                 <span className="text-neutral-500 font-medium">Gateway enabled</span>
-                <input type="checkbox" disabled={darajaManagedByEnvironment} checked={integrations.darajaEnabled} onChange={(event) => setIntegrations((prev) => ({ ...prev, darajaEnabled: event.target.checked }))} className="mt-2 h-4 w-4" />
+                <input type="checkbox" checked={integrations.darajaEnabled} onChange={(event) => setIntegrations((prev) => ({ ...prev, darajaEnabled: event.target.checked }))} className="mt-2 h-4 w-4" />
               </label>
               <div className="space-y-1">
                 <label className="text-neutral-500 font-medium">Environment</label>
-                <select disabled={darajaManagedByEnvironment} value={integrations.darajaEnvironment} onChange={(event) => setIntegrations((prev) => ({ ...prev, darajaEnvironment: event.target.value }))} className="w-full p-2 border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 rounded">
+                <select value={integrations.darajaEnvironment} onChange={(event) => setIntegrations((prev) => ({ ...prev, darajaEnvironment: event.target.value }))} className="w-full p-2 border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 rounded">
                   <option value="sandbox">Sandbox</option>
                   <option value="production">Production</option>
                 </select>
               </div>
               <div className="space-y-1">
                 <label className="text-neutral-500 font-medium">Shortcode</label>
-                <input disabled={darajaManagedByEnvironment} required={integrations.darajaEnabled} inputMode="numeric" value={integrations.darajaShortCode} onChange={(event) => setIntegrations((prev) => ({ ...prev, darajaShortCode: event.target.value }))} className="w-full p-2 border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 rounded" />
+                <input required={integrations.darajaEnabled} inputMode="numeric" value={integrations.darajaShortCode} onChange={(event) => setIntegrations((prev) => ({ ...prev, darajaShortCode: event.target.value }))} className="w-full p-2 border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 rounded" />
               </div>
               <div className="space-y-1">
                 <label className="text-neutral-500 font-medium">Consumer key</label>
-                <input disabled={darajaManagedByEnvironment} type="password" autoComplete="new-password" required={integrations.darajaEnabled && !darajaSecretsSaved} placeholder={darajaSecretsSaved ? "Saved securely; leave blank to keep" : "Required to enable Daraja"} value={integrations.darajaConsumerKey} onChange={(event) => setIntegrations((prev) => ({ ...prev, darajaConsumerKey: event.target.value }))} className="w-full p-2 border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 rounded" />
+                <input type="password" autoComplete="new-password" required={integrations.darajaEnabled && !darajaSecretsSaved} placeholder={darajaSecretsSaved ? "Saved securely; leave blank to keep" : "Required to enable Daraja"} value={integrations.darajaConsumerKey} onChange={(event) => setIntegrations((prev) => ({ ...prev, darajaConsumerKey: event.target.value }))} className="w-full p-2 border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 rounded" />
               </div>
               <div className="space-y-1">
                 <label className="text-neutral-500 font-medium">Consumer secret</label>
-                <input disabled={darajaManagedByEnvironment} type="password" autoComplete="new-password" required={integrations.darajaEnabled && !darajaSecretsSaved} placeholder={darajaSecretsSaved ? "Saved securely; leave blank to keep" : "Required to enable Daraja"} value={integrations.darajaConsumerSecret} onChange={(event) => setIntegrations((prev) => ({ ...prev, darajaConsumerSecret: event.target.value }))} className="w-full p-2 border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 rounded" />
+                <input type="password" autoComplete="new-password" required={integrations.darajaEnabled && !darajaSecretsSaved} placeholder={darajaSecretsSaved ? "Saved securely; leave blank to keep" : "Required to enable Daraja"} value={integrations.darajaConsumerSecret} onChange={(event) => setIntegrations((prev) => ({ ...prev, darajaConsumerSecret: event.target.value }))} className="w-full p-2 border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 rounded" />
               </div>
               <div className="space-y-1">
                 <label className="text-neutral-500 font-medium">Passkey</label>
-                <input disabled={darajaManagedByEnvironment} type="password" autoComplete="new-password" required={integrations.darajaEnabled && !darajaSecretsSaved} placeholder={darajaSecretsSaved ? "Saved securely; leave blank to keep" : "Required to enable Daraja"} value={integrations.darajaPasskey} onChange={(event) => setIntegrations((prev) => ({ ...prev, darajaPasskey: event.target.value }))} className="w-full p-2 border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 rounded" />
+                <input type="password" autoComplete="new-password" required={integrations.darajaEnabled && !darajaSecretsSaved} placeholder={darajaSecretsSaved ? "Saved securely; leave blank to keep" : "Required to enable Daraja"} value={integrations.darajaPasskey} onChange={(event) => setIntegrations((prev) => ({ ...prev, darajaPasskey: event.target.value }))} className="w-full p-2 border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 rounded" />
               </div>
               <div className="space-y-1 md:col-span-2">
                 <label className="text-neutral-500 font-medium">Callback URL</label>
-                <input disabled={darajaManagedByEnvironment} required={integrations.darajaEnabled} type="url" placeholder="https://your-public-domain/api/integrations/daraja/callback" value={integrations.darajaCallbackUrl} onChange={(event) => setIntegrations((prev) => ({ ...prev, darajaCallbackUrl: event.target.value }))} className="w-full p-2 border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 rounded" />
+                <input required={integrations.darajaEnabled} type="url" placeholder="https://your-public-domain/api/integrations/daraja/callback" value={integrations.darajaCallbackUrl} onChange={(event) => setIntegrations((prev) => ({ ...prev, darajaCallbackUrl: event.target.value }))} className="w-full p-2 border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 rounded" />
                 <span className="block text-[10px] text-neutral-500">The server fills this from the current host. Ensure it is publicly reachable over HTTPS.</span>
               </div>
               <div className="space-y-1 md:col-span-2">
                 <label className="text-neutral-500 font-medium">Timeout URL</label>
-                <input disabled={darajaManagedByEnvironment} value={integrations.darajaTimeoutUrl} onChange={(event) => setIntegrations((prev) => ({ ...prev, darajaTimeoutUrl: event.target.value }))} className="w-full p-2 border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 rounded" />
+                <input value={integrations.darajaTimeoutUrl} onChange={(event) => setIntegrations((prev) => ({ ...prev, darajaTimeoutUrl: event.target.value }))} className="w-full p-2 border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 rounded" />
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -413,6 +434,24 @@ export default function PropertySettingsPage() {
                 {registeringC2b ? "Registering C2B URLs…" : "Register C2B URLs"}
               </button>
               <span className="text-[10px] text-neutral-500">Register once after configuring Daraja to receive Paybill payments and clear matching bills.</span>
+            </div>
+            <div className="border-t border-neutral-200 pt-4 dark:border-neutral-800">
+              <h4 className="text-xs font-semibold">Test STK prompt</h4>
+              <p className="mt-1 text-[11px] text-neutral-500">Sends a real M-Pesa prompt using this outlet&apos;s saved credentials. It is not linked to a bill and cannot clear one. Use sandbox credentials to test without a live charge.</p>
+              <div className="mt-3 flex flex-wrap items-end gap-3">
+                <label className="space-y-1 text-xs">
+                  <span className="block text-neutral-500">Phone number</span>
+                  <input type="tel" inputMode="tel" autoComplete="tel" placeholder="07XX XXX XXX" value={testPhone} onChange={(event) => setTestPhone(event.target.value)} className="w-44 rounded border border-neutral-200 bg-neutral-50 p-2 dark:border-neutral-700 dark:bg-neutral-800" />
+                </label>
+                <label className="space-y-1 text-xs">
+                  <span className="block text-neutral-500">Amount (KSh)</span>
+                  <input type="number" min="1" max="150000" step="1" value={testAmount} onChange={(event) => setTestAmount(event.target.value)} className="w-32 rounded border border-neutral-200 bg-neutral-50 p-2 dark:border-neutral-700 dark:bg-neutral-800" />
+                </label>
+                <button type="button" onClick={() => void testDarajaPrompt()} disabled={!activeOutlet || !integrations.darajaEnabled || !darajaSecretsSaved || testingDaraja} className="rounded border border-neutral-300 px-3 py-2 text-xs font-semibold disabled:opacity-40 dark:border-neutral-700">
+                  {testingDaraja ? "Sending test prompt…" : "Send test prompt"}
+                </button>
+              </div>
+              {testDarajaMessage && <p role="status" className="mt-3 rounded border border-neutral-200 bg-neutral-50 p-3 text-xs dark:border-neutral-700 dark:bg-neutral-800">{testDarajaMessage}</p>}
             </div>
           </section>
 

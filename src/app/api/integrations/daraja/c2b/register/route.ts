@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { assertOutletAccess, getAuthContext, hasPermission } from "@/lib/auth/require-session";
 import { databaseReady, withUserContext } from "@/lib/db/postgres";
-import { getDarajaEnvironmentConfig } from "@/lib/integrations/daraja/environment-config";
 import { decryptSecret } from "@/lib/supabase/secret-crypto";
 
 export const runtime = "nodejs";
@@ -40,46 +39,33 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, message: "You do not have permission to manage integration settings." }, { status: 403 });
   }
 
-  let environmentConfig: ReturnType<typeof getDarajaEnvironmentConfig>;
-  try {
-    environmentConfig = getDarajaEnvironmentConfig(scope.propertyId, body.outlet_id);
-  } catch (error) {
-    console.error("Invalid Daraja environment configuration for C2B registration.", error);
-    return NextResponse.json({ success: false, message: "The server's Daraja environment configuration is incomplete or invalid." }, { status: 503 });
-  }
-
-  const result = environmentConfig ? null : await withUserContext(auth.userId, (run) => run<DarajaConfigRow>(
+  const result = await withUserContext(auth.userId, (run) => run<DarajaConfigRow>(
     `SELECT environment, short_code, consumer_key_encrypted, consumer_secret_encrypted,
             callback_secret_encrypted, callback_url, enabled
      FROM daraja_shop_configs
      WHERE property_id = $1 AND outlet_id = $2`,
     [scope.propertyId, body.outlet_id],
   ));
-  const config = result?.rows[0];
+  const config = result.rows[0];
   let environment: "sandbox" | "production";
   let shortCode: string;
   let callbackUrlValue: string;
   let consumerKey: string;
   let consumerSecret: string;
   let callbackSecret: string;
-  if (environmentConfig) {
-    ({ environment, short_code: shortCode, callback_url: callbackUrlValue, consumer_key: consumerKey,
-      consumer_secret: consumerSecret, callback_secret: callbackSecret } = environmentConfig);
-  } else {
-    if (!config || !config.enabled) {
-      return NextResponse.json({ success: false, message: "Save and enable Daraja settings before registering C2B URLs." }, { status: 409 });
-    }
-    try {
-      environment = config.environment;
-      shortCode = config.short_code;
-      callbackUrlValue = config.callback_url;
-      consumerKey = decryptSecret(config.consumer_key_encrypted);
-      consumerSecret = decryptSecret(config.consumer_secret_encrypted);
-      callbackSecret = decryptSecret(config.callback_secret_encrypted);
-    } catch (error) {
-      console.error("Unable to decrypt Daraja credentials for C2B registration.", error);
-      return NextResponse.json({ success: false, message: "Daraja credentials are not configured correctly." }, { status: 500 });
-    }
+  if (!config || !config.enabled) {
+    return NextResponse.json({ success: false, message: "Save and enable Daraja settings before registering C2B URLs." }, { status: 409 });
+  }
+  try {
+    environment = config.environment;
+    shortCode = config.short_code;
+    callbackUrlValue = config.callback_url;
+    consumerKey = decryptSecret(config.consumer_key_encrypted);
+    consumerSecret = decryptSecret(config.consumer_secret_encrypted);
+    callbackSecret = decryptSecret(config.callback_secret_encrypted);
+  } catch (error) {
+    console.error("Unable to decrypt Daraja credentials for C2B registration.", error);
+    return NextResponse.json({ success: false, message: "Daraja credentials are not configured correctly." }, { status: 500 });
   }
 
   const baseUrl = environment === "production"

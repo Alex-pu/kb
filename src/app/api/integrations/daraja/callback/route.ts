@@ -1,7 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { databaseReady, getPool, localApiAuthorized, query } from "@/lib/db/postgres";
-import { getDarajaEnvironmentConfig } from "@/lib/integrations/daraja/environment-config";
 import { decryptSecret } from "@/lib/supabase/secret-crypto";
 
 export const runtime = "nodejs";
@@ -328,38 +327,26 @@ export async function POST(request: Request) {
 
   if (!databaseReady()) return NextResponse.json({ success: false, message: "DATABASE_URL is not configured." }, { status: 503 });
 
-  let environmentConfig: ReturnType<typeof getDarajaEnvironmentConfig>;
-  try {
-    environmentConfig = getDarajaEnvironmentConfig(normalized.property_id, normalized.outlet_id || "");
-  } catch (error) {
-    console.error("Invalid Daraja environment configuration for callback.", error);
-    return NextResponse.json({ success: false, message: "The server's Daraja environment configuration is incomplete or invalid." }, { status: 503 });
-  }
-  const configResult = environmentConfig ? null : await query<{
+  const configResult = await query<{
     callback_secret_encrypted: string;
     short_code: string;
   }>(
     `SELECT callback_secret_encrypted, short_code
      FROM daraja_shop_configs
-     WHERE property_id = $1 AND enabled = TRUE
-       AND ($2::uuid IS NULL OR outlet_id = $2::uuid OR outlet_id IS NULL)
-     ORDER BY CASE WHEN outlet_id IS NOT DISTINCT FROM $2::uuid THEN 0 ELSE 1 END
-     LIMIT 1`,
+     WHERE property_id = $1 AND outlet_id = $2 AND enabled = TRUE`,
     [normalized.property_id, normalized.outlet_id || null],
   );
-  const config = configResult?.rows[0];
+  const config = configResult.rows[0];
 
-  if (!environmentConfig && !config) {
+  if (!config) {
     return NextResponse.json({ success: false, message: "No enabled Daraja configuration exists for this property." }, { status: 404 });
   }
 
-  let callbackSecret = environmentConfig?.callback_secret ?? "";
-  if (!environmentConfig && config) {
-    try {
-      callbackSecret = decryptSecret(config.callback_secret_encrypted);
-    } catch {
-      return NextResponse.json({ success: false, message: "Daraja callback secret is not configured correctly." }, { status: 500 });
-    }
+  let callbackSecret: string;
+  try {
+    callbackSecret = decryptSecret(config.callback_secret_encrypted);
+  } catch {
+    return NextResponse.json({ success: false, message: "Daraja callback secret is not configured correctly." }, { status: 500 });
   }
 
   const callbackSecretParam = new URL(request.url).searchParams.get("secret");
@@ -367,7 +354,7 @@ export async function POST(request: Request) {
   if (!hasValidSecretParam && !isValidSignature(rawBody, request.headers.get("x-daraja-signature"), callbackSecret)) {
     return NextResponse.json({ success: false, message: "Invalid callback signature." }, { status: 401 });
   }
-  const configuredShortCode = environmentConfig?.short_code ?? config?.short_code;
+  const configuredShortCode = config.short_code;
   if (normalized.business_short_code && normalized.business_short_code !== configuredShortCode) {
     return NextResponse.json({ success: false, message: "C2B callback shortcode does not match the property configuration." }, { status: 409 });
   }
