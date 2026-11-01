@@ -352,7 +352,7 @@ export default function PropertySettingsPage() {
             </p>
             {darajaManagedByEnvironment ? (
               <p role="status" className="rounded border border-neutral-200 bg-neutral-50 p-3 text-xs dark:border-neutral-700 dark:bg-neutral-800">
-                Daraja is managed by this server&apos;s environment configuration for the selected outlet. Edit the server&apos;s `.env.local` and restart the app to change it.
+              Daraja is managed by this server&apos;s environment configuration for the selected outlet. Edit the server&apos;s `.env.local` and restart the app to change it. You can still register the C2B URLs below.
               </p>
             ) : (
               <button
@@ -407,12 +407,12 @@ export default function PropertySettingsPage() {
               <button
                 type="button"
                 onClick={() => void registerC2bUrls()}
-                disabled={!activeOutlet || darajaManagedByEnvironment || !integrations.darajaEnabled || !darajaSecretsSaved || registeringC2b}
+                disabled={!activeOutlet || !integrations.darajaEnabled || !darajaSecretsSaved || registeringC2b}
                 className="rounded border border-neutral-300 px-3 py-2 text-xs font-semibold disabled:opacity-40 dark:border-neutral-700"
               >
                 {registeringC2b ? "Registering C2B URLs…" : "Register C2B URLs"}
               </button>
-              <span className="text-[10px] text-neutral-500">{darajaManagedByEnvironment ? "C2B registration requires database-managed Daraja settings." : "Register once after saving to receive Paybill payments and clear matching bills."}</span>
+              <span className="text-[10px] text-neutral-500">Register once after configuring Daraja to receive Paybill payments and clear matching bills.</span>
             </div>
           </section>
 

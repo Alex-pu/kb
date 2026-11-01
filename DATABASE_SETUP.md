@@ -49,7 +49,7 @@ DARAJA_CALLBACK_URL=https://your-domain.example/api/integrations/daraja/callback
 DARAJA_CALLBACK_SECRET=<unique random secret of at least 32 characters>
 ```
 
-Generate a callback secret on the server with `openssl rand -hex 32`. Use `production` only with production Daraja credentials. After saving the file, restrict access with `chmod 600 .env.local`, rebuild the app, and restart its systemd service. Keep the callback secret private and stable so pending Daraja requests can still authenticate their callbacks. This environment configuration supports the STK prompt and its callback; use outlet-scoped database settings for multi-outlet deployments.
+Generate a callback secret on the server with `openssl rand -hex 32`. Use `production` only with production Daraja credentials. After saving the file, restrict access with `chmod 600 .env.local`, rebuild the app, and restart its systemd service. Keep the callback secret private and stable so pending Daraja requests can still authenticate their callbacks. This environment configuration supports STK prompts, C2B URL registration, and both callback flows for the configured outlet. Use outlet-scoped database settings when configuring multiple outlets.
 
 ## 2. Apply migrations
 

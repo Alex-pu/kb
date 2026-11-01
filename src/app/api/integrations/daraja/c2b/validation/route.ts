@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { databaseReady, query } from "@/lib/db/postgres";
+import { getDarajaEnvironmentConfig } from "@/lib/integrations/daraja/environment-config";
 import { decryptSecret } from "@/lib/supabase/secret-crypto";
 
 export const runtime = "nodejs";
@@ -26,7 +27,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ ResultCode: 1, ResultDesc: "Invalid validation payload." }, { status: 400 });
   }
 
-  const result = await query<{
+  let environmentConfig: ReturnType<typeof getDarajaEnvironmentConfig>;
+  try {
+    environmentConfig = getDarajaEnvironmentConfig(propertyId, outletId);
+  } catch (error) {
+    console.error("Invalid Daraja environment configuration for C2B validation.", error);
+    return NextResponse.json({ ResultCode: 1, ResultDesc: "Payment validation is unavailable." }, { status: 503 });
+  }
+
+  const result = environmentConfig ? null : await query<{
     callback_secret_encrypted: string;
     short_code: string;
     enabled: boolean;
@@ -35,23 +44,30 @@ export async function POST(request: Request) {
      FROM daraja_shop_configs WHERE property_id = $1 AND outlet_id = $2`,
     [propertyId, outletId],
   );
-  const config = result.rows[0];
-  if (!config || !config.enabled) {
-    return NextResponse.json({ ResultCode: 1, ResultDesc: "Daraja is not enabled for this outlet." }, { status: 401 });
-  }
+  const config = result?.rows[0];
   let callbackSecret: string;
-  try {
-    callbackSecret = decryptSecret(config.callback_secret_encrypted);
-  } catch (error) {
-    console.error("Unable to decrypt Daraja callback secret for C2B validation.", error);
-    return NextResponse.json({ ResultCode: 1, ResultDesc: "Payment validation is unavailable." }, { status: 500 });
+  let shortCode: string;
+  if (environmentConfig) {
+    callbackSecret = environmentConfig.callback_secret;
+    shortCode = environmentConfig.short_code;
+  } else {
+    if (!config || !config.enabled) {
+      return NextResponse.json({ ResultCode: 1, ResultDesc: "Daraja is not enabled for this outlet." }, { status: 401 });
+    }
+    try {
+      callbackSecret = decryptSecret(config.callback_secret_encrypted);
+      shortCode = config.short_code;
+    } catch (error) {
+      console.error("Unable to decrypt Daraja callback secret for C2B validation.", error);
+      return NextResponse.json({ ResultCode: 1, ResultDesc: "Payment validation is unavailable." }, { status: 500 });
+    }
   }
   const supplied = Buffer.from(suppliedSecret);
   const expected = Buffer.from(callbackSecret);
   if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) {
     return NextResponse.json({ ResultCode: 1, ResultDesc: "Invalid validation endpoint." }, { status: 401 });
   }
-  if (String(body.BusinessShortCode || "") !== config.short_code ||
+  if (String(body.BusinessShortCode || "") !== shortCode ||
       typeof body.BillRefNumber !== "string" ||
       !/^[0-9]{6}$/.test(body.BillRefNumber.trim()) ||
       !Number.isFinite(Number(body.TransAmount)) ||
