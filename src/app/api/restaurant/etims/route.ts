@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { assertOutletAccess, getAuthContext, hasPermission } from "@/lib/auth/require-session";
+import { assertOutletAccess, getAuthContext, hasExplicitPermission } from "@/lib/auth/require-session";
 import { databaseReady } from "@/lib/db/postgres";
 import { submitRestaurantBillToDigitax } from "@/lib/etims/restaurant-digitax";
 
@@ -31,8 +31,8 @@ export async function POST(request: Request) {
   }
   const scope = assertOutletAccess(auth.bundle, body.outlet_id);
   if (!scope) return NextResponse.json({ success: false, message: "You are not assigned to this outlet." }, { status: 403 });
-  if (!hasPermission(auth.bundle, scope.propertyId, "restaurant:settle")) {
-    return NextResponse.json({ success: false, message: "Only restaurant cashiers can manage bill fiscalization." }, { status: 403 });
+  if (!hasExplicitPermission(auth.bundle, scope.propertyId, "restaurant:fiscalize")) {
+    return NextResponse.json({ success: false, message: "You need the Issue eTIMS receipts permission to submit fiscal receipts." }, { status: 403 });
   }
   try {
     const result = await submitRestaurantBillToDigitax(

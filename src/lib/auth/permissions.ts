@@ -52,6 +52,12 @@ export const PERMISSION_GROUPS = [
       { key: "payroll:manage", label: "Manage casual payroll", description: "Manage casual workers and weekly payment folios." },
     ],
   },
+  {
+    name: "Fiscalization",
+    permissions: [
+      { key: "restaurant:fiscalize", label: "Issue eTIMS receipts", description: "Submit paid restaurant bills to DigiTax for eTIMS fiscal signing." },
+    ],
+  },
 ] as const;
 
 export type PermissionKey = (typeof PERMISSION_GROUPS)[number]["permissions"][number]["key"];
@@ -64,6 +70,7 @@ const IMPLIED_PERMISSIONS: Readonly<Record<string, readonly string[]>> = {
   "pos:write": ["pos:read"],
   "restaurant:write": ["restaurant:read"],
   "restaurant:settle": ["restaurant:read"],
+  "restaurant:fiscalize": ["restaurant:read"],
   "frontdesk:write": ["frontdesk:read"],
   "housekeeping:manage": ["housekeeping:write"],
   "rooms:manage": ["frontdesk:read"],

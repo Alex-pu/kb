@@ -48,6 +48,12 @@ export function hasPermission(bundle: UserBundle, propertyId: string, permission
   return permissionGranted(perms, permission);
 }
 
+export function hasExplicitPermission(bundle: UserBundle, propertyId: string, permission: string): boolean {
+  return bundle.assignments.some((assignment) =>
+    assignment.property_id === propertyId && assignment.role?.permissions.includes(permission)
+  );
+}
+
 /**
  * Confirms the signed-in user is allowed to operate on `outletId` (the outlet
  * must belong to one of their assigned properties) and returns the resolved

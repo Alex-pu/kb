@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { QueryResultRow } from "pg";
-import { assertOutletAccess, getAuthContext, hasPermission } from "@/lib/auth/require-session";
+import { assertOutletAccess, getAuthContext, hasExplicitPermission, hasPermission } from "@/lib/auth/require-session";
 import { databaseReady, withUserContext } from "@/lib/db/postgres";
 import { hasSignedDigitaxReceipt, parseDigitaxReceiptDetails } from "@/lib/etims/digitax-receipt";
 import type { CatalogItem, KotStatus, ShiftPeriod } from "@/lib/types/database";
@@ -76,7 +76,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ success: false, message: "You do not have permission to view restaurant bills." }, { status: 403 });
   }
   const canViewAll = hasPermission(auth.bundle, scope.propertyId, "users:manage") ||
-    hasPermission(auth.bundle, scope.propertyId, "restaurant:settle");
+    hasPermission(auth.bundle, scope.propertyId, "restaurant:settle") ||
+    hasExplicitPermission(auth.bundle, scope.propertyId, "restaurant:fiscalize");
 
   try {
     const result = await withUserContext(auth.userId, async (run) => {

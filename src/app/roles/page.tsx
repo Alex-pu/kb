@@ -159,6 +159,11 @@ export default function RolesPage() {
                     </button>
                   )}
                 </div>
+                {!role.is_system_role && role.editable === false && (
+                  <p className="mt-2 text-[10px] text-amber-700 dark:text-amber-300">
+                    This role cannot be edited with your current access. You must manage every property where it is assigned, and cannot edit a role assigned to your own account.
+                  </p>
+                )}
                 <div className="flex flex-wrap gap-1 mt-3">
                   {role.permissions.map((permission) => (
                     <span key={permission} className="px-1.5 py-1 bg-neutral-100 dark:bg-neutral-800 rounded text-[9px] font-mono">{permission}</span>
@@ -204,7 +209,7 @@ export default function RolesPage() {
                 </fieldset>
               ))}
             </div>
-            <p className="text-[10px] text-neutral-500">Catalog permissions control item definitions. Stock permissions separately control balances, receipts, transfers, and adjustments. Role changes sign assigned users out so the new access takes effect.</p>
+            <p className="text-[10px] text-neutral-500">To change an existing custom role, select Edit beside it. Catalog permissions control item definitions; stock permissions separately control balances, receipts, transfers, and adjustments. Role changes sign assigned users out so the new access takes effect.</p>
             <div className="flex justify-end gap-2">
               <button type="button" onClick={startCreate} className="px-3 py-2 border border-neutral-300 dark:border-neutral-700 rounded text-xs">Clear</button>
               <button type="submit" disabled={saving || form.permissions.length === 0} className="px-3 py-2 bg-black text-white dark:bg-white dark:text-black rounded text-xs font-semibold disabled:opacity-50">

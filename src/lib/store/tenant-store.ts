@@ -392,6 +392,7 @@ interface TenantState {
   logout: () => Promise<void>;
   hydrateSession: () => Promise<void>;
   hasPermission: (permission: string) => boolean;
+  hasExplicitPermission: (permission: string) => boolean;
   switchProperty: (propertyId: string) => void;
   switchOutlet: (outletId: string) => void;
   switchStation: (stationId: string) => void;
@@ -571,6 +572,14 @@ export const useTenantStore = create<TenantState>()(
         return permissions.length > 0
           ? permissionGranted(permissions, permission)
           : hasRolePermission(activeRole, permission);
+      },
+
+      hasExplicitPermission: (permission: string) => {
+        const { activeProperty, activeRole, userAssignments } = get();
+        const assignments = userAssignments.filter((assignment) => assignment.property_id === activeProperty?.id);
+        return assignments.length > 0
+          ? assignments.some((assignment) => assignment.role?.permissions.includes(permission))
+          : Boolean(activeRole?.permissions.includes(permission));
       },
 
       logout: async () => {

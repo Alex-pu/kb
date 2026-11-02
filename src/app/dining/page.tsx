@@ -3,8 +3,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { useTenantStore } from "@/lib/store/tenant-store";
+import QRCode from "qrcode";
 import { RestaurantTable, TableOrderLine, TableStatus, TenderType } from "@/lib/types/database";
-import { ArrowLeftRight, Banknote, CreditCard, Minus, Plus, Receipt, Smartphone, Sparkles, WalletCards, X } from "lucide-react";
+import { ArrowLeftRight, Banknote, CreditCard, Loader2, Minus, Plus, Receipt, Smartphone, Sparkles, WalletCards, X } from "lucide-react";
 
 interface RestaurantRoomStay {
   booking_id: string;
@@ -83,10 +84,12 @@ export default function DiningPage() {
     loadRestaurantKots,
     loadRestaurantBills,
     hasPermission,
+    hasExplicitPermission,
   } = useTenantStore();
   const canManageRestaurant = hasPermission("restaurant:write");
   const canSettleRestaurant = hasPermission("restaurant:settle");
-  const canViewAllBills = hasPermission("users:manage") || canSettleRestaurant;
+  const canFiscalizeRestaurant = hasExplicitPermission("restaurant:fiscalize");
+  const canViewAllBills = hasPermission("users:manage") || canSettleRestaurant || canFiscalizeRestaurant;
   const todayDate = localDateInputValue(new Date());
   const earliestWaiterBillDate = localDateInputValue(new Date(Date.now() - 30 * 86400000));
 
@@ -106,6 +109,11 @@ export default function DiningPage() {
   const [roomChargeBookingId, setRoomChargeBookingId] = useState("");
   const [activeRoomStays, setActiveRoomStays] = useState<RestaurantRoomStay[]>([]);
   const [message, setMessage] = useState<string | null>(null);
+  const [customerPins, setCustomerPins] = useState<Record<string, string>>({});
+  const [customerNames, setCustomerNames] = useState<Record<string, string>>({});
+  const [fiscalizationMessages, setFiscalizationMessages] = useState<Record<string, string>>({});
+  const [submittingFiscalizationId, setSubmittingFiscalizationId] = useState<string | null>(null);
+  const [confirmFiscalizationBillId, setConfirmFiscalizationBillId] = useState<string | null>(null);
 
   const activeStays = activeRoomStays;
 
@@ -341,6 +349,103 @@ export default function DiningPage() {
     printWindow.document.close();
   };
 
+  const printFiscalReceipt = async (bill: (typeof restaurantBills)[number]) => {
+    if (bill.etims_status !== "submitted" || !bill.etims_invoice_number ||
+        !bill.etims_signature || !bill.etims_verification_url) {
+      setBillHistoryMessage("A confirmed eTIMS receipt is not available to print for this bill.");
+      return;
+    }
+    const printWindow = window.open("", "_blank", "width=420,height=720");
+    if (!printWindow) {
+      setBillHistoryMessage("The fiscal receipt could not be opened for printing. Allow pop-ups and try again.");
+      return;
+    }
+    const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (character) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    })[character] ?? character);
+    try {
+      const qrCode = await QRCode.toDataURL(bill.etims_verification_url, {
+        errorCorrectionLevel: "M",
+        margin: 2,
+        width: 192,
+      });
+      printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>eTIMS receipt ${escapeHtml(bill.bill_number)}</title><style>
+        *{box-sizing:border-box}body{font:12px/1.45 Arial,sans-serif;width:72mm;margin:0 auto;padding:7mm 5mm;color:#111}
+        h1{text-align:center;font-size:16px}.meta{font-size:11px;border-top:1px dashed #777;padding-top:8px}
+        .total{display:flex;justify-content:space-between;border-block:2px solid #111;padding:8px 0;margin:12px 0;font-weight:bold}
+        .qr{text-align:center;margin:14px 0}.qr img{width:40mm;height:40mm}.url{font-size:8px;overflow-wrap:anywhere}
+        .signature{font-size:8px;overflow-wrap:anywhere;border-top:1px dashed #777;padding-top:8px}
+        @page{size:80mm auto;margin:0}@media print{body{width:72mm;margin:0;padding:5mm}}
+      </style></head><body>
+        <h1>KORE BENCH<br>eTIMS FISCAL RECEIPT</h1>
+        <p><strong>KRA eTIMS VERIFIED</strong></p>
+        <div class="meta">Invoice: ${escapeHtml(bill.etims_invoice_number)}<br>
+          Receipt: ${escapeHtml(bill.etims_receipt_number ?? "—")}<br>
+          Date: ${escapeHtml(bill.etims_receipt_date ?? bill.business_date)}<br>
+          Bill: ${escapeHtml(bill.bill_number)}<br>
+          Customer: ${escapeHtml(bill.etims_customer_name ?? "Walk-in customer")}<br>
+          PIN: ${escapeHtml(bill.etims_customer_tin ?? "—")}
+        </div>
+        <div class="total"><span>Total paid</span><span>KSh ${bill.total.toFixed(2)}</span></div>
+        <div class="qr"><img src="${qrCode}" alt="Receipt verification QR code"><p>Scan to verify receipt</p><p class="url">${escapeHtml(bill.etims_verification_url)}</p></div>
+        <p class="signature"><strong>Receipt signature</strong><br>${escapeHtml(bill.etims_signature)}</p>
+        <script>window.onload=()=>window.print()</script></body></html>`);
+      printWindow.document.close();
+    } catch (error) {
+      printWindow.close();
+      console.error("Could not generate the eTIMS receipt QR code.", error);
+      setBillHistoryMessage("The fiscal receipt could not be prepared for printing. Please try again.");
+    }
+  };
+
+  const submitFiscalReceipt = async (bill: (typeof restaurantBills)[number]) => {
+    if (!activeOutlet || !canFiscalizeRestaurant || submittingFiscalizationId) return;
+    setSubmittingFiscalizationId(bill.id);
+    setConfirmFiscalizationBillId(null);
+    setFiscalizationMessages((current) => ({ ...current, [bill.id]: "" }));
+    try {
+      const response = await fetch("/api/restaurant/etims", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          outlet_id: activeOutlet.id,
+          check_id: bill.id,
+          customer_pin: customerPins[bill.id]?.trim() || undefined,
+          customer_name: customerNames[bill.id]?.trim() || undefined,
+          ...(bill.etims_status === "blocked" || bill.etims_status === "failed"
+            ? { action: "retry_blocked" }
+            : {}),
+        }),
+      });
+      const result: unknown = await response.json();
+      const responseMessage = typeof result === "object" && result !== null &&
+        "message" in result && typeof result.message === "string"
+        ? result.message
+        : "The eTIMS receipt status could not be confirmed.";
+      setFiscalizationMessages((current) => ({ ...current, [bill.id]: responseMessage }));
+      if (!response.ok || typeof result !== "object" || result === null ||
+          !("success" in result) || result.success !== true) {
+        setBillHistoryMessage(responseMessage);
+        return;
+      }
+      setCustomerPins((current) => ({ ...current, [bill.id]: "" }));
+      setCustomerNames((current) => ({ ...current, [bill.id]: "" }));
+      const refreshed = await loadRestaurantBills(billDate);
+      if (!refreshed.success) setBillHistoryMessage(refreshed.message);
+    } catch {
+      const errorMessage = "Could not reach DigiTax. The issue status is unknown; verify it with DigiTax before retrying.";
+      setFiscalizationMessages((current) => ({ ...current, [bill.id]: errorMessage }));
+      setBillHistoryMessage(errorMessage);
+    } finally {
+      setSubmittingFiscalizationId(null);
+    }
+  };
+
   const sendMpesaPrompt = async () => {
     if (!selectedTableId || !selectedCheck || !activeProperty || !activeOutlet || !payerPhone.trim() || sendingMpesaPrompt) return;
     if (!Number.isInteger(total)) {
@@ -561,6 +666,92 @@ export default function DiningPage() {
                           </span>
                         ))}
                       </div>
+                      {bill.status === "settled" && (
+                        <section className="rounded border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-700 dark:bg-neutral-800/50">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="text-xs font-semibold">eTIMS receipt</span>
+                            <span className={`rounded border px-2 py-0.5 text-[10px] font-mono uppercase ${
+                              bill.etims_status === "submitted"
+                                ? "border-emerald-500 text-emerald-700 dark:text-emerald-300"
+                                : bill.etims_status === "failed" || bill.etims_status === "blocked"
+                                  ? "border-rose-400 text-rose-700 dark:text-rose-300"
+                                  : "border-amber-400 text-amber-800 dark:text-amber-300"
+                            }`}>
+                              {bill.etims_status ?? "not issued"}
+                            </span>
+                          </div>
+                          {bill.etims_status === "submitted" ? (
+                            <div className="mt-2 space-y-1 text-[10px] text-neutral-600 dark:text-neutral-300">
+                              <p>Invoice {bill.etims_invoice_number ?? "—"} · Receipt {bill.etims_receipt_number ?? "—"}</p>
+                              {bill.etims_verification_url && (
+                                <a href={bill.etims_verification_url} target="_blank" rel="noreferrer" className="underline">
+                                  Verify fiscal receipt
+                                </a>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => void printFiscalReceipt(bill)}
+                                className="block rounded border border-neutral-300 px-2 py-1 font-semibold dark:border-neutral-600"
+                              >
+                                Reprint fiscal receipt
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="mt-2 space-y-2">
+                              {bill.etims_error && <p className="text-[10px] text-rose-700 dark:text-rose-300">{bill.etims_error}</p>}
+                              {bill.etims_status === "pending" || bill.etims_status === "unknown" ? (
+                                <p className="text-[10px] text-amber-800 dark:text-amber-300">
+                                  {bill.etims_status === "pending"
+                                    ? "DigiTax is processing this receipt. Refresh the bill history to check its status."
+                                    : "The issue result is not confirmed. Verify with DigiTax before trying again."}
+                                </p>
+                              ) : canFiscalizeRestaurant ? (
+                                <>
+                                  {(!bill.etims_status || bill.etims_status === "blocked" || bill.etims_status === "failed") && (
+                                    <div className="flex flex-wrap gap-2">
+                                      <input
+                                        aria-label={`Customer KRA PIN for bill ${bill.bill_number}`}
+                                        maxLength={11}
+                                        placeholder="Customer KRA PIN (optional)"
+                                        value={customerPins[bill.id] ?? ""}
+                                        onChange={(event) => setCustomerPins((current) => ({ ...current, [bill.id]: event.target.value.toUpperCase() }))}
+                                        className="min-w-52 rounded border border-neutral-300 bg-white px-2 py-1.5 text-xs font-mono dark:border-neutral-700 dark:bg-neutral-900"
+                                      />
+                                      <input
+                                        aria-label={`Customer name for bill ${bill.bill_number}`}
+                                        maxLength={255}
+                                        placeholder="Customer name (optional)"
+                                        value={customerNames[bill.id] ?? ""}
+                                        onChange={(event) => setCustomerNames((current) => ({ ...current, [bill.id]: event.target.value }))}
+                                        className="min-w-52 rounded border border-neutral-300 bg-white px-2 py-1.5 text-xs dark:border-neutral-700 dark:bg-neutral-900"
+                                      />
+                                      <button
+                                        type="button"
+                                        disabled={submittingFiscalizationId !== null}
+                                        onClick={() => setConfirmFiscalizationBillId(bill.id)}
+                                        className="rounded border border-emerald-600 px-3 py-1.5 text-[10px] font-semibold text-emerald-800 disabled:opacity-50 dark:text-emerald-300"
+                                      >
+                                        {bill.etims_status === "blocked" || bill.etims_status === "failed"
+                                          ? "Review & retry eTIMS"
+                                          : "Issue eTIMS receipt"}
+                                      </button>
+                                    </div>
+                                  )}
+                                  {fiscalizationMessages[bill.id] && (
+                                    <p role="status" className="text-[10px] text-neutral-600 dark:text-neutral-300">
+                                      {fiscalizationMessages[bill.id]}
+                                    </p>
+                                  )}
+                                </>
+                              ) : (
+                                <p className="text-[10px] text-neutral-500">
+                                  Only the assigned eTIMS issuer can sign and issue this receipt.
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </section>
+                      )}
                       <div className="space-y-1">
                         {bill.lines.map((line, index) => (
                           <div key={`${line.item.id}-${line.round}-${index}`} className="border-t border-neutral-100 dark:border-neutral-800 pt-2 text-xs">
@@ -896,6 +1087,39 @@ export default function DiningPage() {
             </div>
           </div>
         )}
+
+        {confirmFiscalizationBillId && (() => {
+          const bill = restaurantBills.find((item) => item.id === confirmFiscalizationBillId);
+          if (!bill) return null;
+          return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="restaurant-etims-confirm-title">
+              <section className="w-full max-w-md space-y-4 rounded border border-neutral-300 bg-white p-5 shadow-xl dark:border-neutral-700 dark:bg-neutral-900">
+                <div>
+                  <h2 id="restaurant-etims-confirm-title" className="text-sm font-bold">Confirm eTIMS receipt</h2>
+                  <p className="mt-1 text-xs text-neutral-500">This will send the paid bill to DigiTax for fiscal signing. Confirm the bill details before issuing.</p>
+                </div>
+                <div className="space-y-2 rounded border border-neutral-200 p-3 text-xs dark:border-neutral-700">
+                  <p><strong>Bill:</strong> {bill.bill_number} · {bill.table_name}</p>
+                  <p><strong>Paid:</strong> KSh {bill.total.toFixed(2)}</p>
+                  <p><strong>Customer PIN:</strong> {customerPins[bill.id]?.trim() || "Not provided"}</p>
+                  <p><strong>Customer name:</strong> {customerNames[bill.id]?.trim() || "Not provided"}</p>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <button type="button" onClick={() => setConfirmFiscalizationBillId(null)} className="rounded border border-neutral-300 px-3 py-2 text-xs font-semibold dark:border-neutral-700">Cancel</button>
+                  <button
+                    type="button"
+                    disabled={submittingFiscalizationId !== null}
+                    onClick={() => void submitFiscalReceipt(bill)}
+                    className="inline-flex items-center gap-2 rounded bg-emerald-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
+                  >
+                    {submittingFiscalizationId === bill.id && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                    {bill.etims_status === "blocked" || bill.etims_status === "failed" ? "Confirm retry" : "Confirm & issue"}
+                  </button>
+                </div>
+              </section>
+            </div>
+          );
+        })()}
 
         {lastReceipt && (
           <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">

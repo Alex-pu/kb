@@ -130,7 +130,7 @@ export async function POST(request: Request) {
     });
 
     if (result.outcome === "duplicate") {
-      return NextResponse.json({ success: false, message: "A role with that name already exists." }, { status: 409 });
+      return NextResponse.json({ success: false, message: "A role with that name already exists. Select Edit on the existing custom role to change it." }, { status: 409 });
     }
     return NextResponse.json({ success: true, role: result.role }, { status: 201 });
   } catch (error) {
@@ -225,7 +225,9 @@ export async function PATCH(request: Request) {
     if (result.outcome === "self_assignment") {
       return NextResponse.json({ success: false, message: "You cannot edit the permissions of a role assigned to your own account." }, { status: 403 });
     }
-    if (result.outcome === "duplicate") return NextResponse.json({ success: false, message: "A role with that name already exists." }, { status: 409 });
+    if (result.outcome === "duplicate") {
+      return NextResponse.json({ success: false, message: "A role with that name already exists. Select Edit on the existing custom role to change it." }, { status: 409 });
+    }
     return NextResponse.json({ success: true, role: result.role, message: "Role updated. Assigned users must sign in again for the new permissions." });
   } catch (error) {
     console.error("Failed to update role.", error);

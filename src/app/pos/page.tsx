@@ -17,11 +17,12 @@ const categoryLabels: { key: "all" | ProductCategory; label: string }[] = [
 ];
 
 export default function PosPage() {
-  const { catalog, cart, activeShift, currentUser, activeRole, lastReceipt, addToCart, updateCartQuantity, clearCart, checkout, loadShift, openShift, closeShift, clearReceipt, activeProperty, activeOutlet, activeStation, company, hasPermission } = useTenantStore();
+  const { catalog, cart, activeShift, currentUser, activeRole, lastReceipt, addToCart, updateCartQuantity, clearCart, checkout, loadShift, openShift, closeShift, clearReceipt, activeProperty, activeOutlet, activeStation, company, hasPermission, hasExplicitPermission } = useTenantStore();
   const canOpenShift = hasPermission("shift:open");
   const canCloseShift = hasPermission("shift:close");
   const canOperatePos = hasPermission("pos:write");
   const canClearRestaurantBills = hasPermission("restaurant:settle");
+  const canIssueEtims = hasExplicitPermission("restaurant:fiscalize");
   const isRestaurantCashier = canClearRestaurantBills;
   const cashierRoleMissingPermission = !canClearRestaurantBills &&
     (activeRole?.role_key === "cashier" || activeRole?.name.toLowerCase().includes("cashier"));
@@ -409,7 +410,7 @@ export default function PosPage() {
                             <div className="mt-1 space-y-2">
                               <p>Paid; no eTIMS receipt has been confirmed. {bill.etims_error ?? (bill.etims_status === "pending" || bill.etims_status === "unknown" || bill.etims_status === "failed" ? "Verify the sale with DigiTax before retrying." : "Enter optional customer details, review the bill, then confirm sending it to DigiTax.")}</p>
                               {etimsActionMessages[bill.id] && <p role="status" className="rounded bg-white/70 p-2 text-xs dark:bg-neutral-900/70">Last issue request: {etimsActionMessages[bill.id]}</p>}
-                              {(!bill.etims_status || bill.etims_status === "blocked" || bill.etims_status === "failed") && (
+                              {(!bill.etims_status || bill.etims_status === "blocked" || bill.etims_status === "failed") && canIssueEtims && (
                                 <div className="flex flex-wrap gap-2">
                                   <input
                                     aria-label={`Customer KRA PIN for bill ${bill.bill_number}`}
@@ -438,6 +439,9 @@ export default function PosPage() {
                                     {bill.etims_status === "blocked" || bill.etims_status === "failed" ? "Review failed receipt" : "Review eTIMS receipt"}
                                   </button>
                                 </div>
+                              )}
+                              {(!bill.etims_status || bill.etims_status === "blocked" || bill.etims_status === "failed") && !canIssueEtims && (
+                                <p>Only the assigned eTIMS issuer can sign and issue this receipt.</p>
                               )}
                             </div>
                           )}
