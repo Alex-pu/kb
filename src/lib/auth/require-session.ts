@@ -1,7 +1,7 @@
 import "server-only";
 import { cookies } from "next/headers";
 import { SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/auth/session";
-import { permissionGranted } from "@/lib/auth/permissions";
+import { isPayrollManagerRole, permissionGranted } from "@/lib/auth/permissions";
 import { cashierOutletIdsForUser, getUserBundle, hasCashierOutletReservations, resolveSessionUserId, type UserBundle } from "@/lib/db/auth-repository";
 
 export interface AuthContext {
@@ -35,11 +35,12 @@ export async function getAuthContext(): Promise<AuthContext | null> {
 
 /** Returns the permission set granted to `userId` for the given property, or an empty array if they have no active assignment there. */
 export function permissionsForProperty(bundle: UserBundle, propertyId: string): string[] {
-  return Array.from(new Set(
-    bundle.assignments
-      .filter((assignment) => assignment.property_id === propertyId)
-      .flatMap((assignment) => assignment.role?.permissions ?? [])
-  ));
+  const assignments = bundle.assignments.filter((assignment) => assignment.property_id === propertyId);
+  const permissions = assignments.flatMap((assignment) => assignment.role?.permissions ?? []);
+  if (assignments.some((assignment) => isPayrollManagerRole(assignment.role?.role_key))) {
+    permissions.push("payroll:manage");
+  }
+  return Array.from(new Set(permissions));
 }
 
 export function hasPermission(bundle: UserBundle, propertyId: string, permission: string): boolean {

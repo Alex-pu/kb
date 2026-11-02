@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { CatalogItem, CartLine, ChartOfAccount, Company, DarajaPaymentRecord, DarajaShopConfig, Expense, FloorArea, Folio, Booking, HousekeepingStatus, JournalEntry, JournalLine, Kot, KotStatus, MealAddOn, Outlet, Property, Room, RoomType, RestaurantTable, RetailReceipt, RetailShift, Role, RoomChargeRequest, ApprovalPolicy, ShiftArea, ShiftPeriod, Station, StockItem, StockMovement, StockRequisition, TableOrderLine, TenderLine, User, UserAssignment } from "../types/database";
 import { enqueueOfflineOperation } from "../offline/offline-queue";
-import { permissionGranted } from "../auth/permissions";
+import { isPayrollManagerRole, permissionGranted } from "../auth/permissions";
 
 interface RestaurantCheckInfo {
   id: string;
@@ -562,9 +562,12 @@ export const useTenantStore = create<TenantState>()(
 
       hasPermission: (permission: string) => {
         const { activeProperty, activeRole, userAssignments } = get();
-        const permissions = userAssignments
-          .filter((assignment) => assignment.property_id === activeProperty?.id)
-          .flatMap((assignment) => assignment.role?.permissions ?? []);
+        const assignments = userAssignments.filter((assignment) => assignment.property_id === activeProperty?.id);
+        const permissions = assignments.flatMap((assignment) => assignment.role?.permissions ?? []);
+        if (permission === "payroll:manage" &&
+            assignments.some((assignment) => isPayrollManagerRole(assignment.role?.role_key))) {
+          return true;
+        }
         return permissions.length > 0
           ? permissionGranted(permissions, permission)
           : hasRolePermission(activeRole, permission);

@@ -81,6 +81,11 @@ export function permissionGranted(permissions: readonly string[], requested: str
   );
 }
 
+export function isPayrollManagerRole(roleKey: string | undefined): boolean {
+  return ["admin", "administrator", "super_admin", "general_manager", "accountant"]
+    .includes(roleKey?.trim().toLowerCase() ?? "");
+}
+
 const PAGE_PERMISSIONS: ReadonlyArray<readonly [string, string]> = [
   ["/", "dashboard:read"],
   ["/users", "users:manage"],

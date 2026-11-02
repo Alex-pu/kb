@@ -3,6 +3,7 @@ import type { QueryResultRow } from "pg";
 import { getAuthContext, hasPermission } from "@/lib/auth/require-session";
 import type { AuthContext } from "@/lib/auth/require-session";
 import { databaseReady, withUserContext } from "@/lib/db/postgres";
+import { isPayrollManagerRole } from "@/lib/auth/permissions";
 
 export const runtime = "nodejs";
 
@@ -56,18 +57,13 @@ type PayrollAccess =
   | { auth: AuthContext; propertyId: string }
   | { response: NextResponse };
 
-function isPayrollRole(roleKey: string | undefined) {
-  return ["admin", "administrator", "super_admin", "general_manager", "accountant"]
-    .includes(roleKey?.trim().toLowerCase() ?? "");
-}
-
 function readPayrollAccess(auth: AuthContext, propertyId: unknown): PayrollAccess {
   if (typeof propertyId !== "string" || !UUID_PATTERN.test(propertyId) ||
       !auth.bundle.properties.some((property) => property.id === propertyId)) {
     return { response: NextResponse.json({ success: false, message: "Select a property you are assigned to." }, { status: 403 }) };
   }
   const hasPayrollRole = auth.bundle.assignments.some((assignment) =>
-    assignment.property_id === propertyId && assignment.is_active && isPayrollRole(assignment.role?.role_key)
+    assignment.property_id === propertyId && assignment.is_active && isPayrollManagerRole(assignment.role?.role_key)
   );
   if (!hasPayrollRole || !hasPermission(auth.bundle, propertyId, "payroll:manage")) {
     return { response: NextResponse.json({ success: false, message: "Casual payroll is available to administrators and accountants only." }, { status: 403 }) };
