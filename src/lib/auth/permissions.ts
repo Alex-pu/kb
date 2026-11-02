@@ -46,6 +46,12 @@ export const PERMISSION_GROUPS = [
       { key: "roles:manage", label: "Manage roles", description: "Create custom roles and edit their permissions." },
     ],
   },
+  {
+    name: "Payroll",
+    permissions: [
+      { key: "payroll:manage", label: "Manage casual payroll", description: "Manage casual workers and weekly payment folios." },
+    ],
+  },
 ] as const;
 
 export type PermissionKey = (typeof PERMISSION_GROUPS)[number]["permissions"][number]["key"];
@@ -65,6 +71,7 @@ const IMPLIED_PERMISSIONS: Readonly<Record<string, readonly string[]>> = {
   "catalog:manage": ["catalog:read"],
   "inventory:manage": ["inventory:read", "inventory:request"],
   "accounting:write": ["accounting:read"],
+  "payroll:manage": [],
 };
 
 export function permissionGranted(permissions: readonly string[], requested: string): boolean {
@@ -87,6 +94,7 @@ const PAGE_PERMISSIONS: ReadonlyArray<readonly [string, string]> = [
   ["/stock", "inventory:read"],
   ["/store-requests", "inventory:request"],
   ["/accounting", "accounting:read"],
+  ["/casual-payroll", "payroll:manage"],
   ["/reports", "analytics:read"],
   ["/audit-logs", "audit:read"],
   ["/settings", "settings:manage"],
@@ -109,6 +117,7 @@ const LANDING_PAGE_CANDIDATES = [
   "/stock",
   "/catalog",
   "/accounting",
+  "/casual-payroll",
   "/reports",
   "/audit-logs",
   "/users",

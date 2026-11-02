@@ -50,6 +50,10 @@ Apply migrations before deploying code that adds or changes database-backed feat
 
 In the app, enable DigiTax and save the sandbox API key in Property Settings. Add sale items in **Catalog** using an active, completed DigiTax profile: finished products require stock tracking, while services are non-stock items. KoreBench assigns the SKU as the barcode and registers the item with DigiTax. Check the per-item sync status; use **Sync KoreBench items to DigiTax** or the item's retry action if registration is pending or failed. The reverse **Import items from DigiTax** flow remains available for products already registered there and requires a barcode for safe matching.
 
+### Casual payroll
+
+Migration `033_casual_payroll.sql` creates a property-scoped casual worker register and weekly payroll folios. The **Casual Payroll** workspace lets administrators and accountants maintain worker IDs, departments, phone numbers, daily rates, and active status; record attendance for each Sunday-to-Saturday day; and track deductions, partial or full payments, worker signatures, notes, department subtotals, balances owed, and folio sign-offs. Use **Print / Export PDF** on a weekly folio to open the browser print dialog; print it directly or choose **Save as PDF**. Folio numbers are generated per property. The migration and role setup grant `payroll:manage` to administrator and accountant roles; administrator roles with full (`*`) permissions already have access. Apply migrations before using this workspace.
+
 ## 3. Bootstrap your real company
 
 There is no seed/demo data. Run the interactive bootstrap script once against your empty database to create your actual company, property, outlet, till station, roles, and admin (and optionally cashier) login:

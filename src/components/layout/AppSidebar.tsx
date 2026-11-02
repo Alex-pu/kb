@@ -21,7 +21,8 @@ import {
   Building2,
   ShieldCheck,
   Sparkles,
-  UserRound
+  UserRound,
+  Wallet
 } from "lucide-react";
 
 interface NavItem {
@@ -50,6 +51,7 @@ const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
       { title: "Products & Menu", href: "/catalog", icon: Package, permission: "catalog:read" },
       { title: "Stock & Supplies", href: "/stock", icon: Boxes, permission: "inventory:read" },
       { title: "Accounting & Ledger", href: "/accounting", icon: Calculator, permission: "accounting:read" },
+      { title: "Casual Payroll", href: "/casual-payroll", icon: Wallet, permission: "payroll:manage" },
       { title: "Reports & Analytics", href: "/reports", icon: BarChart3, permission: "analytics:read" },
       { title: "Activity Logs", href: "/audit-logs", icon: History, permission: "audit:read" },
       { title: "User Management", href: "/users", icon: Users, permission: "users:manage" },

@@ -57,6 +57,110 @@ body {
   font-feature-settings: "rlig" 1, "calt" 1;
 }
 
+.casual-payroll-print-document {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 8mm;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  .casual-payroll-print-document,
+  .casual-payroll-print-document * {
+    visibility: visible !important;
+  }
+
+  .casual-payroll-print-document {
+    display: block !important;
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100% !important;
+    overflow: visible !important;
+    background: #fff !important;
+    color: #000 !important;
+    font-family: Arial, sans-serif !important;
+  }
+
+  .casual-payroll-print-header {
+    margin-bottom: 5mm;
+  }
+
+  .casual-payroll-print-header h1 {
+    margin: 0 0 3mm;
+    font-size: 15pt;
+    text-align: center;
+  }
+
+  .casual-payroll-print-meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 5mm;
+    font-size: 8pt;
+  }
+
+  .casual-payroll-print-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 6.5pt;
+  }
+
+  .casual-payroll-print-table th,
+  .casual-payroll-print-table td {
+    border: 0.4pt solid #777;
+    padding: 1.2mm 0.8mm;
+    overflow-wrap: anywhere;
+    text-align: right;
+    vertical-align: top;
+  }
+
+  .casual-payroll-print-table th {
+    background: #eee !important;
+    font-weight: 700;
+    text-align: center;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .casual-payroll-print-table th:first-child,
+  .casual-payroll-print-table td:first-child {
+    width: 15%;
+    text-align: left;
+  }
+
+  .casual-payroll-print-table .casual-payroll-print-day {
+    width: 3%;
+    text-align: center;
+  }
+
+  .casual-payroll-print-table tr {
+    break-inside: avoid;
+  }
+
+  .casual-payroll-print-subtotal th,
+  .casual-payroll-print-table tfoot th,
+  .casual-payroll-print-table tfoot td {
+    background: #e8e8e8 !important;
+    font-weight: 700;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .casual-payroll-print-approvals {
+    display: flex;
+    justify-content: space-between;
+    gap: 8mm;
+    margin-top: 10mm;
+    font-size: 8pt;
+  }
+}
+
 /* Crisp Bench-style scrollbar */
 ::-webkit-scrollbar {
   width: 6px;

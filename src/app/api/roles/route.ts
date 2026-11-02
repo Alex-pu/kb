@@ -47,7 +47,11 @@ function readRoleInput(body: RoleBody) {
       )) {
     return null;
   }
-  return { name, description: description || null, roleKey, permissions: Array.from(new Set(permissions)) };
+  const normalizedPermissions = new Set<string>(permissions);
+  if (["admin", "administrator", "super_admin", "general_manager", "accountant"].includes(roleKey)) {
+    normalizedPermissions.add("payroll:manage");
+  }
+  return { name, description: description || null, roleKey, permissions: Array.from(normalizedPermissions) };
 }
 
 async function readBody(request: Request): Promise<RoleBody | null> {
