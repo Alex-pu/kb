@@ -49,6 +49,7 @@ interface PayrollResponse {
   success: boolean;
   message?: string;
   employees?: PayrollEmployee[];
+  departments?: string[];
   folios?: PayrollFolio[];
   folio?: PayrollFolio | null;
   entries?: PayrollEntry[];
@@ -142,6 +143,8 @@ export default function CasualPayrollPage() {
   const canManage = hasPermission("payroll:manage");
   const [tab, setTab] = useState<"weekly" | "workers">("weekly");
   const [employees, setEmployees] = useState<PayrollEmployee[]>([]);
+  const [departments, setDepartments] = useState<string[]>([]);
+  const [departmentDraft, setDepartmentDraft] = useState("");
   const [folios, setFolios] = useState<PayrollFolio[]>([]);
   const [folio, setFolio] = useState<PayrollFolio | null>(null);
   const [entries, setEntries] = useState<PayrollEntry[]>([]);
@@ -157,6 +160,7 @@ export default function CasualPayrollPage() {
   const loadWorkspace = useCallback(async () => {
     if (!activeProperty?.id) {
       setEmployees([]);
+      setDepartments([]);
       setFolios([]);
       setFolio(null);
       setEntries([]);
@@ -175,6 +179,7 @@ export default function CasualPayrollPage() {
         return;
       }
       setEmployees(result.employees ?? []);
+      setDepartments(result.departments ?? []);
       setFolios(result.folios ?? []);
       setFolio(result.folio ?? null);
       setEntries((result.entries ?? []).map(toEntryDraft));
@@ -370,6 +375,30 @@ export default function CasualPayrollPage() {
       await loadWorkspace();
     } catch {
       setMessage("Could not reach the server. Worker details were not saved.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveDepartment(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!activeProperty?.id) return;
+    setSaving(true);
+    try {
+      const { response, result } = await sendMutation({
+        action: "create_department",
+        property_id: activeProperty.id,
+        name: departmentDraft,
+      }, "POST");
+      if (!response.ok || !result.success) {
+        setMessage(result.message || "Department could not be added.");
+        return;
+      }
+      setDepartmentDraft("");
+      setMessage(result.message || "Department added.");
+      await loadWorkspace();
+    } catch {
+      setMessage("Could not reach the server. Department was not added.");
     } finally {
       setSaving(false);
     }
@@ -642,7 +671,8 @@ export default function CasualPayrollPage() {
 
         {tab === "workers" && (
           <section className="grid gap-5 xl:grid-cols-[minmax(300px,380px)_1fr]">
-            <form onSubmit={(event) => void saveEmployee(event)} className="h-fit space-y-3 rounded border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
+            <div className="space-y-5">
+              <form onSubmit={(event) => void saveEmployee(event)} className="h-fit space-y-3 rounded border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-semibold">{editingEmployeeId ? "Edit worker" : "Add worker"}</h2>
                 {editingEmployeeId && <button type="button" onClick={resetEmployeeForm} className="text-xs text-neutral-500 hover:underline">Cancel</button>}
@@ -654,7 +684,10 @@ export default function CasualPayrollPage() {
                 <input maxLength={100} value={employeeDraft.employee_code} onChange={(event) => setEmployeeDraft({ ...employeeDraft, employee_code: event.target.value })} className="mt-1 w-full rounded border border-neutral-300 bg-neutral-50 p-2 text-xs dark:border-neutral-700 dark:bg-neutral-800" />
               </label>
               <label className="block text-[10px] font-mono text-neutral-500">Department
-                <input required maxLength={100} value={employeeDraft.department} onChange={(event) => setEmployeeDraft({ ...employeeDraft, department: event.target.value })} placeholder="e.g. Housekeeping" className="mt-1 w-full rounded border border-neutral-300 bg-neutral-50 p-2 text-xs dark:border-neutral-700 dark:bg-neutral-800" />
+                <select required value={employeeDraft.department} onChange={(event) => setEmployeeDraft({ ...employeeDraft, department: event.target.value })} className="mt-1 w-full rounded border border-neutral-300 bg-neutral-50 p-2 text-xs dark:border-neutral-700 dark:bg-neutral-800">
+                  <option value="">Select a department</option>
+                  {departments.map((department) => <option key={department} value={department}>{department}</option>)}
+                </select>
               </label>
               <label className="block text-[10px] font-mono text-neutral-500">Phone
                 <input type="tel" maxLength={50} value={employeeDraft.phone} onChange={(event) => setEmployeeDraft({ ...employeeDraft, phone: event.target.value })} className="mt-1 w-full rounded border border-neutral-300 bg-neutral-50 p-2 text-xs dark:border-neutral-700 dark:bg-neutral-800" />
@@ -675,7 +708,37 @@ export default function CasualPayrollPage() {
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : editingEmployeeId ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
                 {editingEmployeeId ? "Save worker" : "Add worker"}
               </button>
-            </form>
+              </form>
+
+              <div className="rounded border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
+                <h2 className="text-sm font-semibold">Payroll departments</h2>
+                <p className="mt-1 text-[10px] text-neutral-500">Add departments once, then select them when registering workers.</p>
+                <form onSubmit={(event) => void saveDepartment(event)} className="mt-3 flex gap-2">
+                  <input
+                    required
+                    maxLength={100}
+                    value={departmentDraft}
+                    onChange={(event) => setDepartmentDraft(event.target.value)}
+                    placeholder="e.g. Housekeeping"
+                    aria-label="Department name"
+                    disabled={!canManage}
+                    className="min-w-0 flex-1 rounded border border-neutral-300 bg-neutral-50 p-2 text-xs disabled:opacity-50 dark:border-neutral-700 dark:bg-neutral-800"
+                  />
+                  <button type="submit" disabled={saving || loading || !canManage} className="inline-flex items-center gap-1 rounded bg-neutral-900 px-3 py-2 text-xs font-medium text-white disabled:opacity-50 dark:bg-white dark:text-black">
+                    <Plus className="h-3.5 w-3.5" /> Add
+                  </button>
+                </form>
+                {departments.length > 0 ? (
+                  <ul className="mt-3 flex flex-wrap gap-2">
+                    {departments.map((department) => (
+                      <li key={department} className="rounded border border-neutral-200 px-2 py-1 text-[10px] dark:border-neutral-700">{department}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-3 text-xs text-neutral-500">No departments yet. Add one before adding a worker.</p>
+                )}
+              </div>
+            </div>
 
             <div className="overflow-hidden rounded border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
               <div className="flex items-center justify-between border-b border-neutral-200 p-4 dark:border-neutral-800">

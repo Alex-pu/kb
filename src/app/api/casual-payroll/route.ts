@@ -23,6 +23,10 @@ interface EmployeeRow extends QueryResultRow {
   updated_at: Date;
 }
 
+interface DepartmentRow extends QueryResultRow {
+  name: string;
+}
+
 interface FolioRow extends QueryResultRow {
   id: string;
   folio_number: number;
@@ -207,13 +211,20 @@ export async function GET(request: Request) {
 
   try {
     const result = await withUserContext(auth.userId, async (run) => {
-      const [employees, folios] = await Promise.all([
+      const [employees, departments, folios] = await Promise.all([
         run<EmployeeRow>(
           `SELECT id, employee_code, full_name, department, phone, daily_rate::text,
                   status, notes, created_at, updated_at
            FROM casual_payroll_employees
            WHERE property_id = $1
            ORDER BY department, full_name`,
+          [propertyId]
+        ),
+        run<DepartmentRow>(
+          `SELECT name
+           FROM casual_payroll_departments
+           WHERE property_id = $1
+           ORDER BY name`,
           [propertyId]
         ),
         run<FolioRow>(
@@ -254,11 +265,12 @@ export async function GET(request: Request) {
             [folio.id, propertyId]
           )
         : { rows: [] as EntryRow[] };
-      return { employees: employees.rows, folios: folios.rows, folio, entries: entries.rows };
+      return { employees: employees.rows, departments: departments.rows, folios: folios.rows, folio, entries: entries.rows };
     });
     return NextResponse.json({
       success: true,
       employees: result.employees.map((employee) => ({ ...employee, daily_rate: Number(employee.daily_rate) })),
+      departments: result.departments.map((department) => department.name),
       folios: result.folios,
       folio: result.folio,
       entries: result.entries.map((entry) => ({
@@ -287,18 +299,55 @@ export async function POST(request: Request) {
   if ("response" in payrollAccess) return payrollAccess.response;
   const { auth, propertyId } = payrollAccess;
 
+  if (body.action === "create_department") {
+    if (!validText(body.name, 100, true)) {
+      return NextResponse.json({ success: false, message: "Enter a department name up to 100 characters." }, { status: 400 });
+    }
+    const name = body.name.trim();
+    try {
+      const department = await withUserContext(auth.userId, async (run) => {
+        const inserted = await run<DepartmentRow>(
+          `INSERT INTO casual_payroll_departments (company_id, property_id, name, created_by)
+           VALUES ($1, $2, $3, $4)
+           RETURNING name`,
+          [auth.bundle.company.id, propertyId, name, auth.userId]
+        );
+        await run(
+          `INSERT INTO audit_log
+             (company_id, property_id, actor_user_id, action_type, resource_type, resource_id, payload_after)
+           VALUES ($1, $2, $3, 'PAYROLL.DEPARTMENT.CREATE', 'casual_payroll_departments', NULL, $4::jsonb)`,
+          [auth.bundle.company.id, propertyId, auth.userId, JSON.stringify({ name: inserted.rows[0].name })]
+        );
+        return inserted.rows[0];
+      });
+      return NextResponse.json({ success: true, department: department.name, message: "Department added." }, { status: 201 });
+    } catch (error) {
+      if (typeof error === "object" && error !== null && "code" in error && error.code === "23505") {
+        return NextResponse.json({ success: false, message: "That department already exists at this property." }, { status: 409 });
+      }
+      console.error("Failed to create casual payroll department.", error);
+      return NextResponse.json({ success: false, message: "The department could not be added." }, { status: 500 });
+    }
+  }
+
   if (body.action === "create_employee") {
     const input = employeeInput(body);
     if (!input) return NextResponse.json({ success: false, message: "Enter a name, department, valid daily rate, and valid worker details." }, { status: 400 });
     try {
       const employee = await withUserContext(auth.userId, async (run) => {
+        const department = await run<DepartmentRow>(
+          `SELECT name FROM casual_payroll_departments
+           WHERE property_id = $1 AND LOWER(name) = LOWER($2)`,
+          [propertyId, input.department]
+        );
+        if (!department.rows[0]) return null;
         const inserted = await run<EmployeeRow>(
           `INSERT INTO casual_payroll_employees
              (company_id, property_id, employee_code, full_name, department, phone, daily_rate, status, notes, created_by)
            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
            RETURNING id, employee_code, full_name, department, phone, daily_rate::text,
                      status, notes, created_at, updated_at`,
-          [auth.bundle.company.id, propertyId, input.employeeCode, input.fullName, input.department,
+          [auth.bundle.company.id, propertyId, input.employeeCode, input.fullName, department.rows[0].name,
             input.phone, input.dailyRate, input.status, input.notes, auth.userId]
         );
         const row = inserted.rows[0];
@@ -310,6 +359,7 @@ export async function POST(request: Request) {
         );
         return { ...row, daily_rate: Number(row.daily_rate) };
       });
+      if (!employee) return NextResponse.json({ success: false, message: "Select a department from the payroll department list." }, { status: 400 });
       return NextResponse.json({ success: true, employee, message: "Worker added." }, { status: 201 });
     } catch (error) {
       if (typeof error === "object" && error !== null && "code" in error && error.code === "23505") {
@@ -387,6 +437,12 @@ export async function PATCH(request: Request) {
     if (!input) return NextResponse.json({ success: false, message: "Enter a name, department, valid daily rate, and valid worker details." }, { status: 400 });
     try {
       const outcome = await withUserContext(auth.userId, async (run) => {
+        const department = await run<DepartmentRow>(
+          `SELECT name FROM casual_payroll_departments
+           WHERE property_id = $1 AND LOWER(name) = LOWER($2)`,
+          [propertyId, input.department]
+        );
+        if (!department.rows[0]) return { invalidDepartment: true as const };
         const existing = await run<EmployeeRow>(
           `SELECT id, employee_code, full_name, department, phone, daily_rate::text,
                   status, notes, created_at, updated_at
@@ -404,7 +460,7 @@ export async function PATCH(request: Request) {
            WHERE id = $8 AND property_id = $9
            RETURNING id, employee_code, full_name, department, phone, daily_rate::text,
                      status, notes, created_at, updated_at`,
-          [input.employeeCode, input.fullName, input.department, input.phone, input.dailyRate,
+          [input.employeeCode, input.fullName, department.rows[0].name, input.phone, input.dailyRate,
             input.status, input.notes, body.employee_id, propertyId]
         );
         await run(
@@ -414,10 +470,13 @@ export async function PATCH(request: Request) {
           [auth.bundle.company.id, propertyId, auth.userId, body.employee_id,
             JSON.stringify(before), JSON.stringify(input)]
         );
-        return { ...updated.rows[0], daily_rate: Number(updated.rows[0].daily_rate) };
+        return { employee: { ...updated.rows[0], daily_rate: Number(updated.rows[0].daily_rate) } };
       });
+      if (outcome && "invalidDepartment" in outcome) {
+        return NextResponse.json({ success: false, message: "Select a department from the payroll department list." }, { status: 400 });
+      }
       if (!outcome) return NextResponse.json({ success: false, message: "Worker not found." }, { status: 404 });
-      return NextResponse.json({ success: true, employee: outcome, message: "Worker details updated." });
+      return NextResponse.json({ success: true, employee: outcome.employee, message: "Worker details updated." });
     } catch (error) {
       if (typeof error === "object" && error !== null && "code" in error && error.code === "23505") {
         return NextResponse.json({ success: false, message: "That worker ID is already in use at this property." }, { status: 409 });
