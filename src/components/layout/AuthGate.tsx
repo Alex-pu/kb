@@ -22,13 +22,14 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   const canViewPage = requiredPermission === null || canViewPermission(requiredPermission);
 
   useEffect(() => {
+    if (pathname === "/") return;
     void hydrateSession();
     // Only run once on mount — hydrateSession is stable across the component's lifetime.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (authLoading) return;
+    if (pathname === "/" || authLoading) return;
     const isPublic = PUBLIC_ROUTES.has(pathname);
     if (!isAuthenticated && !isPublic) {
       router.replace("/login");
@@ -39,7 +40,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     }
   }, [authLoading, canViewPage, isAuthenticated, landingPage, pathname, router]);
 
-  if (authLoading && pathname === "/") {
+  if (pathname === "/") {
     return <>{children}</>;
   }
 
