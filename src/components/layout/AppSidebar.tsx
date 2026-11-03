@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTenantStore } from "@/lib/store/tenant-store";
+import { X } from "lucide-react";
 import { 
   LayoutDashboard, 
   Users, 
@@ -62,16 +63,32 @@ const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
   },
 ];
 
-export function AppSidebar() {
+interface AppSidebarProps {
+  mobileOpen: boolean;
+  onMobileClose: () => void;
+}
+
+export function AppSidebar({ mobileOpen, onMobileClose }: AppSidebarProps) {
   const pathname = usePathname();
   const { activeProperty, activeOutlet, activeRole, hasPermission } = useTenantStore();
   const canAccessRooms = hasPermission("frontdesk:read") ||
     hasPermission("housekeeping:write") || hasPermission("rooms:manage");
 
   return (
-    <aside className="w-64 bg-white dark:bg-neutral-900 border-r border-neutral-200 dark:border-neutral-800 flex flex-col h-screen shrink-0 select-none">
+    <>
+    {mobileOpen && (
+      <button
+        type="button"
+        aria-label="Close navigation menu"
+        onClick={onMobileClose}
+        className="absolute inset-0 z-40 bg-black/50 lg:hidden"
+      />
+    )}
+    <aside className={`absolute inset-y-0 left-0 z-50 flex h-full w-[min(18rem,88vw)] shrink-0 select-none flex-col border-r border-neutral-200 bg-white transition-transform dark:border-neutral-800 dark:bg-neutral-900 lg:static lg:z-auto lg:h-screen lg:w-64 lg:translate-x-0 ${
+      mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+    }`}>
       {/* Brand Header */}
-      <div className="h-14 border-b border-neutral-200 dark:border-neutral-800 flex items-center px-4 gap-2.5">
+      <div className="flex h-14 shrink-0 items-center gap-2.5 border-b border-neutral-200 px-4 dark:border-neutral-800">
         <div className="w-7 h-7 bg-black dark:bg-white text-white dark:text-black flex items-center justify-center font-bold text-sm rounded">
           K
         </div>
@@ -79,6 +96,14 @@ export function AppSidebar() {
           <span className="font-semibold text-sm leading-tight truncate">KORE BENCH</span>
           <span className="text-[10px] text-neutral-500 font-mono tracking-wider uppercase">SME Operations</span>
         </div>
+        <button
+          type="button"
+          aria-label="Close navigation menu"
+          onClick={onMobileClose}
+          className="ml-auto rounded p-2 text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800 lg:hidden"
+        >
+          <X className="h-5 w-5" />
+        </button>
       </div>
 
       {/* Active Tenant Context Snippet */}
@@ -116,8 +141,9 @@ export function AppSidebar() {
                     <Link
                       key={item.title}
                       href={item.href}
+                      onClick={onMobileClose}
                       aria-current={isActive ? "page" : undefined}
-                      className={`flex items-center gap-2.5 px-2.5 py-2 rounded text-xs font-medium transition-colors ${
+                      className={`flex min-h-11 items-center gap-2.5 rounded px-2.5 py-2 text-sm font-medium transition-colors ${
                         isActive
                           ? "bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900"
                           : "text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800"
@@ -142,5 +168,6 @@ export function AppSidebar() {
         </span>
       </div>
     </aside>
+    </>
   );
 }

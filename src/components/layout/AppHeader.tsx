@@ -5,15 +5,20 @@ import { useTenantStore } from "@/lib/store/tenant-store";
 import { PropertySwitcherModal } from "./PropertySwitcherModal";
 import { PersonaSwitcher } from "./PersonaSwitcher";
 import { ResilienceStatus } from "./ResilienceStatus";
-import { 
+import {
   Building2, 
   ChevronRight, 
-  Radio, 
-  Layers, 
-  TerminalSquare 
+  Menu,
+  TerminalSquare,
+  X,
 } from "lucide-react";
 
-export function AppHeader() {
+interface AppHeaderProps {
+  mobileNavigationOpen: boolean;
+  onMenuClick: () => void;
+}
+
+export function AppHeader({ mobileNavigationOpen, onMenuClick }: AppHeaderProps) {
   const { 
     company, 
     activeProperty, 
@@ -26,9 +31,18 @@ export function AppHeader() {
 
   return (
     <>
-      <header className="h-14 border-b border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-4 flex items-center justify-between shrink-0 select-none">
+      <header className="z-30 flex h-14 shrink-0 select-none items-center justify-between gap-2 border-b border-neutral-200 bg-white px-2.5 dark:border-neutral-800 dark:bg-neutral-900 sm:px-4">
         {/* Left: Breadcrumbs and Property Selector */}
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex min-w-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={onMenuClick}
+            aria-label={mobileNavigationOpen ? "Close navigation menu" : "Open navigation menu"}
+            aria-expanded={mobileNavigationOpen}
+            className="shrink-0 rounded p-2 text-neutral-700 hover:bg-neutral-100 dark:text-neutral-200 dark:hover:bg-neutral-800 lg:hidden"
+          >
+            {mobileNavigationOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
           <div className="flex items-center gap-1.5 text-xs text-neutral-500 font-mono">
             <span className="font-semibold text-neutral-800 dark:text-neutral-200 truncate hidden md:inline">
               {company?.name || "Kore Bench"}
@@ -38,11 +52,11 @@ export function AppHeader() {
 
           <button
             onClick={() => setIsSwitcherOpen(true)}
-            className="flex items-center gap-2 px-2.5 py-1 rounded bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-900 dark:text-neutral-100 text-xs font-medium border border-neutral-300 dark:border-neutral-700 transition-colors"
+            className="flex min-w-0 items-center gap-1.5 rounded border border-neutral-300 bg-neutral-100 px-2 py-2 text-xs font-medium text-neutral-900 transition-colors hover:bg-neutral-200 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100 dark:hover:bg-neutral-700 sm:gap-2 sm:px-2.5"
             title="Click to switch active property or outlet"
           >
             <Building2 className="w-3.5 h-3.5 text-neutral-600 dark:text-neutral-300" />
-            <span className="truncate max-w-[160px] sm:max-w-[240px]">
+            <span className="max-w-[35vw] truncate sm:max-w-[240px]">
               {activeProperty?.name || "Select Property"}
             </span>
             {availableProperties.length > 1 && (
@@ -63,7 +77,7 @@ export function AppHeader() {
         </div>
 
         {/* Right: Station ID, Online Indicator, Persona Switcher */}
-        <div className="flex items-center gap-3">
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
           {activeStation && (
             <div className="hidden sm:flex items-center gap-1.5 px-2 py-1 rounded bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-[11px] font-mono text-neutral-600 dark:text-neutral-400">
               <TerminalSquare className="w-3 h-3 text-neutral-500" />

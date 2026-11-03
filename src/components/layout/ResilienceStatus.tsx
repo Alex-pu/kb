@@ -71,9 +71,9 @@ export function ResilienceStatus() {
       title={registered ? "Offline shell ready" : "Offline shell unavailable"}
     >
       {online ? <Radio className="w-3 h-3" /> : <CloudOff className="w-3 h-3" />}
-      <span>{syncing ? "SYNCING..." : online ? "ONLINE" : "OFFLINE"}</span>
+      <span className="hidden sm:inline">{syncing ? "SYNCING..." : online ? "ONLINE" : "OFFLINE"}</span>
       {registered && <RefreshCw className={`w-3 h-3 ${syncing ? "animate-spin" : "text-emerald-600"}`} />}
-      {pendingCount > 0 && <span className="text-amber-700">{pendingCount} queued</span>}
+      {pendingCount > 0 && <span className="hidden text-amber-700 sm:inline">{pendingCount} queued</span>}
     </button>
   );
 }
