@@ -303,20 +303,20 @@ export default function RoomsPage() {
 
   return (
     <DashboardShell>
-      <div className="max-w-6xl mx-auto space-y-6">
-        <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800 pb-3">
+      <div className="mx-auto w-full max-w-6xl space-y-5 sm:space-y-6">
+        <div className="flex flex-col items-start justify-between gap-3 border-b border-neutral-200 pb-3 sm:flex-row sm:items-center dark:border-neutral-800">
           <div>
             <h1 className="text-xl font-bold tracking-tight">Front Desk & Rooms</h1>
             <p className="text-xs text-neutral-500 font-mono mt-0.5">Phase 4 • Live room rack, bookings, folios & housekeeping</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto">
             {canManageRoomSetup && (
-              <button onClick={() => setShowRoomSetup(true)} className="flex items-center gap-2 px-3 py-1.5 border border-neutral-300 dark:border-neutral-700 text-xs font-semibold rounded">
+              <button onClick={() => setShowRoomSetup(true)} className="flex min-h-10 flex-1 items-center justify-center gap-2 rounded border border-neutral-300 px-3 py-2 text-sm font-semibold dark:border-neutral-700 sm:flex-none">
                 <Plus className="w-3.5 h-3.5" /> Set up rooms
               </button>
             )}
             {canManageFrontDesk && (
-              <button onClick={() => setShowNewBooking(true)} className="flex items-center gap-2 px-3 py-1.5 bg-black text-white dark:bg-white dark:text-black text-xs font-semibold rounded">
+              <button onClick={() => setShowNewBooking(true)} className="flex min-h-10 flex-1 items-center justify-center gap-2 rounded bg-black px-3 py-2 text-sm font-semibold text-white dark:bg-white dark:text-black sm:flex-none">
                 <Plus className="w-3.5 h-3.5" /> New booking
               </button>
             )}
@@ -399,12 +399,12 @@ export default function RoomsPage() {
         )}
 
         <section className="space-y-3">
-          <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:flex-wrap sm:items-end">
             <div>
               <h2 className="text-xs font-mono font-semibold uppercase tracking-wider text-neutral-500">Room types & live availability</h2>
               <p className="mt-1 text-[10px] text-neutral-500">Expand a category to see room-by-room occupancy, readiness checks, and Front Desk notes.</p>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
               <label className="relative">
                 <span className="sr-only">Search rooms</span>
                 <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-neutral-400" />
@@ -413,7 +413,7 @@ export default function RoomsPage() {
                   value={roomSearch}
                   onChange={(event) => setRoomSearch(event.target.value)}
                   placeholder="Room, floor, or type"
-                  className="w-52 rounded border border-neutral-200 bg-white py-2 pl-7 pr-2 text-xs dark:border-neutral-700 dark:bg-neutral-900"
+                  className="w-full rounded border border-neutral-200 bg-white py-2.5 pl-7 pr-2 text-sm dark:border-neutral-700 dark:bg-neutral-900 sm:w-52"
                 />
               </label>
               <label>
@@ -421,7 +421,7 @@ export default function RoomsPage() {
                 <select
                   value={roomFilter}
                   onChange={(event) => setRoomFilter(event.target.value as RoomFilter)}
-                  className="h-full rounded border border-neutral-200 bg-white px-2 py-2 text-xs dark:border-neutral-700 dark:bg-neutral-900"
+                  className="h-full w-full rounded border border-neutral-200 bg-white px-3 py-2.5 text-sm dark:border-neutral-700 dark:bg-neutral-900 sm:w-auto"
                 >
                   {roomFilterOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
@@ -473,7 +473,42 @@ export default function RoomsPage() {
                         <span className="rounded bg-red-50 px-1.5 py-1 text-red-700 dark:bg-red-950/30 dark:text-red-300">{maintenanceCount} maintenance</span>
                       </div>
                     </summary>
-                    <div className="overflow-x-auto border-t border-neutral-200 dark:border-neutral-800">
+                    <div className="space-y-2 border-t border-neutral-200 p-2 dark:border-neutral-800 sm:hidden">
+                      {group.rooms.map((room) => {
+                        const activeBooking = bookings.find((booking) =>
+                          booking.room_id === room.id && (booking.status === "reserved" || booking.status === "checked_in")
+                        );
+                        const stayDetail = activeBooking
+                          ? `${activeBooking.status === "checked_in" ? "In house" : "Arrival"}${canViewFrontDesk ? ` · ${activeBooking.guest.full_name}` : ""}`
+                          : "No current stay";
+                        return (
+                          <div key={room.id} className="rounded border border-neutral-200 p-3 dark:border-neutral-700">
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div>
+                                <div className="text-sm font-semibold">Room {room.number}</div>
+                                <div className="text-xs text-neutral-500">Floor {room.floor} · {stayDetail}</div>
+                              </div>
+                              <div className="flex flex-wrap gap-1.5">
+                                <span className={`rounded px-2 py-1 text-xs font-medium ${occupancyStatusStyles[room.status]}`}>
+                                  {room.status === "available" ? "Vacant" : room.status}
+                                </span>
+                                <span className={`rounded px-2 py-1 text-xs font-medium ${housekeepingStatusStyles[room.housekeeping_status]}`}>
+                                  {room.housekeeping_status}
+                                </span>
+                              </div>
+                            </div>
+                            {(room.housekeeping_notes || room.housekeeping_checklist || room.housekeeping_updated_at) && (
+                              <div className="mt-2 border-t border-neutral-100 pt-2 text-xs text-neutral-500 dark:border-neutral-800">
+                                {room.housekeeping_checklist && <div>Readiness checks: {Object.values(room.housekeeping_checklist).filter(Boolean).length}/5 complete</div>}
+                                {room.housekeeping_updated_at && <div>Updated {new Date(room.housekeeping_updated_at).toLocaleString()}{room.housekeeping_updated_by_name ? ` · ${room.housekeeping_updated_by_name}` : ""}</div>}
+                                {room.housekeeping_notes && <div className="mt-1 text-amber-700 dark:text-amber-300">Note: {room.housekeeping_notes}</div>}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="hidden overflow-x-auto border-t border-neutral-200 dark:border-neutral-800 sm:block">
                       <table className="w-full min-w-[680px] text-left text-xs">
                         <thead className="bg-neutral-50 text-[10px] font-mono uppercase text-neutral-500 dark:bg-neutral-800/60">
                           <tr>
@@ -546,8 +581,30 @@ export default function RoomsPage() {
 
         {canViewFrontDesk && <div>
           <h2 className="text-xs font-mono font-semibold uppercase tracking-wider text-neutral-500 mb-2">Bookings & Folios</h2>
-          <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded overflow-hidden">
-            <table className="w-full text-left text-xs">
+          <div className="overflow-hidden rounded border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+            <div className="space-y-2 p-2 sm:hidden">
+              {bookings.map((booking) => {
+                const room = rooms.find((r) => r.id === booking.room_id);
+                const folio = folios.find((f) => f.id === booking.folio_id);
+                const bal = (folio?.lines || []).reduce((sum, line) => sum + (line.type === "payment" ? -line.amount : line.amount), 0);
+                return (
+                  <button key={booking.id} type="button" onClick={() => openBooking(booking)} className="w-full rounded border border-neutral-200 p-3 text-left dark:border-neutral-700">
+                    <span className="flex items-start justify-between gap-3">
+                      <span className="min-w-0 text-sm font-semibold">{booking.guest.full_name}<span className="mt-0.5 block text-xs font-normal text-neutral-500">{booking.guest.phone_number}</span></span>
+                      <span className="shrink-0 rounded bg-neutral-100 px-2 py-1 text-xs font-mono uppercase dark:bg-neutral-800">{booking.status}</span>
+                    </span>
+                    <span className="mt-3 grid grid-cols-2 gap-2 border-t border-neutral-100 pt-2 text-xs dark:border-neutral-800">
+                      <span><span className="block text-neutral-500">Room</span>{room?.number ?? "—"}</span>
+                      <span><span className="block text-neutral-500">Balance</span>KSh {bal.toFixed(2)}</span>
+                      <span className="col-span-2"><span className="block text-neutral-500">Stay</span>{new Date(booking.check_in_date).toLocaleDateString()} → {new Date(booking.check_out_date).toLocaleDateString()}</span>
+                    </span>
+                  </button>
+                );
+              })}
+              {bookings.length === 0 && <p className="p-3 text-center text-sm text-neutral-500">No bookings yet.</p>}
+            </div>
+            <div className="hidden overflow-x-auto sm:block">
+            <table className="w-full min-w-[640px] text-left text-xs">
               <thead className="bg-neutral-50 dark:bg-neutral-800/60 text-[11px] font-mono uppercase text-neutral-500">
                 <tr><th className="p-3">Guest</th><th className="p-3">Room</th><th className="p-3">Dates</th><th className="p-3">Status</th><th className="p-3">Balance</th><th className="p-3"></th></tr>
               </thead>
@@ -569,12 +626,13 @@ export default function RoomsPage() {
                 })}
               </tbody>
             </table>
+            </div>
           </div>
         </div>}
 
         {selectedBooking && selectedFolio && (
-          <div className="fixed inset-0 z-40 bg-black/50 flex items-center justify-end">
-            <div className="w-full max-w-md h-full bg-white dark:bg-neutral-900 border-l border-neutral-300 dark:border-neutral-700 p-4 overflow-y-auto space-y-4">
+          <div className="fixed inset-0 z-40 flex items-end bg-black/50 sm:items-center sm:justify-end">
+            <div className="max-h-[92dvh] w-full max-w-md space-y-4 overflow-y-auto rounded-t-xl border-t border-neutral-300 bg-white p-4 dark:border-neutral-700 dark:bg-neutral-900 sm:h-full sm:max-h-none sm:rounded-none sm:border-l sm:border-t-0 sm:p-5">
               <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800 pb-3">
                 <div>
                   <h2 className="font-bold text-sm">{selectedBooking.guest.full_name}</h2>
@@ -661,7 +719,7 @@ export default function RoomsPage() {
 
         {showRoomSetup && canManageRoomSetup && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-            <div className="max-h-[90vh] w-full max-w-2xl space-y-4 overflow-y-auto rounded border border-neutral-300 bg-white p-5 dark:border-neutral-700 dark:bg-neutral-900">
+            <div className="max-h-[90dvh] w-full max-w-2xl space-y-4 overflow-y-auto rounded border border-neutral-300 bg-white p-4 dark:border-neutral-700 dark:bg-neutral-900 sm:p-5">
               <div className="flex items-center justify-between border-b border-neutral-200 pb-3 dark:border-neutral-800">
                 <div>
                   <h2 className="text-sm font-semibold">Room setup</h2>
@@ -757,7 +815,7 @@ export default function RoomsPage() {
 
         {showNewBooking && canManageFrontDesk && (
           <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-            <div className="w-full max-w-md bg-white dark:bg-neutral-900 border border-neutral-300 dark:border-neutral-700 rounded p-5 space-y-3">
+            <div className="max-h-[90dvh] w-full max-w-md space-y-3 overflow-y-auto rounded border border-neutral-300 bg-white p-4 dark:border-neutral-700 dark:bg-neutral-900 sm:p-5">
               <div className="flex justify-between items-center"><h2 className="font-semibold text-sm">New booking</h2><button onClick={() => setShowNewBooking(false)}><X className="w-4 h-4" /></button></div>
               <label className="block text-xs space-y-1">Room
                 <select value={newBooking.roomId} onChange={(event) => setNewBooking({ ...newBooking, roomId: event.target.value })} className="w-full p-2 border rounded bg-neutral-50 dark:bg-neutral-800">
@@ -769,7 +827,7 @@ export default function RoomsPage() {
               </label>
               <label className="block text-xs space-y-1">Guest name<input value={newBooking.guestName} onChange={(event) => setNewBooking({ ...newBooking, guestName: event.target.value })} className="w-full p-2 border rounded bg-neutral-50 dark:bg-neutral-800" /></label>
               <label className="block text-xs space-y-1">Guest phone<input value={newBooking.guestPhone} onChange={(event) => setNewBooking({ ...newBooking, guestPhone: event.target.value })} className="w-full p-2 border rounded bg-neutral-50 dark:bg-neutral-800" /></label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <label className="block text-xs space-y-1">Check-in<input type="date" value={newBooking.checkInDate} onChange={(event) => setNewBooking({ ...newBooking, checkInDate: event.target.value })} className="w-full p-2 border rounded bg-neutral-50 dark:bg-neutral-800" /></label>
                 <label className="block text-xs space-y-1">Check-out<input type="date" value={newBooking.checkOutDate} onChange={(event) => setNewBooking({ ...newBooking, checkOutDate: event.target.value })} className="w-full p-2 border rounded bg-neutral-50 dark:bg-neutral-800" /></label>
               </div>

@@ -543,8 +543,8 @@ export default function DiningPage() {
 
   return (
     <DashboardShell>
-      <div className="max-w-6xl mx-auto space-y-6">
-        <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800 pb-3">
+      <div className="mx-auto w-full max-w-6xl space-y-5 sm:space-y-6">
+        <div className="flex flex-col items-start justify-between gap-3 border-b border-neutral-200 pb-3 sm:flex-row sm:items-center dark:border-neutral-800">
           <div>
             <h1 className="text-xl font-bold tracking-tight">Floor Plan & Tables</h1>
             <p className="text-xs text-neutral-500 font-mono mt-0.5">Phase 2 • Dine-in ordering, table lifecycle, transfer & settlement</p>
@@ -586,7 +586,7 @@ export default function DiningPage() {
                 {canViewAllBills ? "All waiters • any past business date" : "Your bills • today and the previous 30 days"}
               </p>
             </div>
-            <div className="flex items-end gap-2">
+            <div className="flex w-full flex-wrap items-end gap-2 sm:w-auto">
               <label className="space-y-1 text-[10px] font-mono text-neutral-500">
                 Business date
                 <input
@@ -785,7 +785,7 @@ export default function DiningPage() {
           {tablesByArea.map(({ area, tables: areaTables }) => (
             <div key={area.id}>
               <h2 className="text-xs font-mono font-semibold uppercase tracking-wider text-neutral-500 mb-2">{area.name}</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3 md:grid-cols-4">
                 {areaTables.map((table) => {
                   const lines = tableOrders[table.id] || [];
                   const tableTotal = lines.reduce((sum, line) => sum + line.item.price * line.quantity, 0);
@@ -793,13 +793,13 @@ export default function DiningPage() {
                     <button
                       key={table.id}
                       onClick={() => openTable(table)}
-                      className={`text-left p-3 rounded border-2 min-h-24 transition-colors ${statusStyles[table.status]} ${selectedTableId === table.id ? "ring-2 ring-neutral-900 dark:ring-white" : ""}`}
+                      className={`min-h-28 rounded border-2 p-3 text-left transition-colors ${statusStyles[table.status]} ${selectedTableId === table.id ? "ring-2 ring-neutral-900 dark:ring-white" : ""}`}
                     >
                       <div className="flex items-center justify-between">
                         <span className="font-bold text-sm">{table.name}</span>
-                        <span className="text-[10px] font-mono text-neutral-500">{table.capacity} seats</span>
+                        <span className="text-xs font-mono text-neutral-500">{table.capacity} seats</span>
                       </div>
-                      <div className="mt-2 text-[10px] font-mono uppercase tracking-wide">{statusLabels[table.status]}</div>
+                      <div className="mt-2 text-xs font-mono uppercase tracking-wide">{statusLabels[table.status]}</div>
                       {tableTotal > 0 && <div className="mt-1 text-xs font-mono font-semibold">KSh {tableTotal.toFixed(2)}</div>}
                       {table.status === "cleaning" && canManageRestaurant && (
                         <span
@@ -868,8 +868,8 @@ export default function DiningPage() {
         </section>}
 
         {selectedTable && (
-          <div className="fixed inset-0 z-40 bg-black/50 flex items-center justify-end">
-            <div className="w-full max-w-md h-full bg-white dark:bg-neutral-900 border-l border-neutral-300 dark:border-neutral-700 p-4 overflow-y-auto space-y-4">
+          <div className="fixed inset-0 z-40 flex items-end bg-black/50 sm:items-center sm:justify-end">
+            <div className="max-h-[92dvh] w-full max-w-md space-y-4 overflow-y-auto rounded-t-xl border-t border-neutral-300 bg-white p-4 dark:border-neutral-700 dark:bg-neutral-900 sm:h-full sm:max-h-none sm:rounded-none sm:border-l sm:border-t-0 sm:p-5">
               <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800 pb-3">
                 <div>
                   <h2 className="font-bold text-sm">{selectedTable.name} • {statusLabels[selectedTable.status]}</h2>
@@ -1051,7 +1051,7 @@ export default function DiningPage() {
                       <div className="text-[10px] font-mono font-semibold uppercase text-emerald-700 dark:text-emerald-300">
                         Cashier settlement • Waiter {selectedCheck?.waiter_name}
                       </div>
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                         {([["cash", "Cash", Banknote], ["mpesa", "M-Pesa", Smartphone], ["card", "Card", CreditCard]] as const).map(([type, label, Icon]) => (
                           <label key={type} className="space-y-1">
                             <span className="flex items-center gap-1 text-[10px] font-mono text-neutral-500"><Icon className="w-3 h-3" />{label}</span>

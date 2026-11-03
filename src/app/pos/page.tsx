@@ -301,8 +301,8 @@ export default function PosPage() {
 
   return (
     <DashboardShell>
-      <div className="min-h-[620px] flex flex-col gap-4 max-w-[1500px] mx-auto">
-        <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800 pb-3">
+      <div className="flex min-h-0 flex-col gap-4 mx-auto w-full max-w-[1500px]">
+        <div className="flex flex-col items-start justify-between gap-3 border-b border-neutral-200 pb-3 sm:flex-row sm:items-center dark:border-neutral-800">
           <div>
             <h1 className="text-xl font-bold tracking-tight">{isRestaurantCashier ? "Restaurant Cashier" : "Touch POS Station"}</h1>
             <p className="text-xs text-neutral-500 font-mono mt-0.5">{isRestaurantCashier ? "Restaurant & bar • waiter bills, payments, reprints and shift control" : "Retail checkout, tenders, stock and shift control"}</p>
@@ -313,7 +313,7 @@ export default function PosPage() {
             </div>
           )}
           {!activeShift ? (
-            <div className="flex items-center gap-2">
+            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
               {canOpenShift ? (
                 <>
                   <select aria-label="POS shift" value={shiftPeriod} onChange={(event) => setShiftPeriod(event.target.value as ShiftPeriod)} className="px-2 py-1.5 text-xs border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 rounded">
@@ -329,7 +329,7 @@ export default function PosPage() {
               )}
             </div>
           ) : activeShift.status === "open" ? (
-            <div className="flex items-center gap-2 text-xs font-mono">
+            <div className="flex w-full flex-wrap items-center gap-2 text-xs font-mono sm:w-auto">
               <span className="px-2 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded">
                 POS • {activeShift.shift_period?.toUpperCase() ?? "LEGACY"} • {activeShift.business_date ?? "DATE N/A"}
               </span>
@@ -351,7 +351,7 @@ export default function PosPage() {
               )}
             </div>
           ) : (
-            <div className="flex items-center gap-2 text-xs font-mono">
+            <div className="flex w-full flex-wrap items-center gap-2 text-xs font-mono sm:w-auto">
               <span className="px-2 py-1 bg-neutral-200 dark:bg-neutral-800 rounded">SHIFT CLOSED • VAR {activeShift.variance?.toFixed(2)}</span>
               {activeShift.manager_approval_required && (
                 <span className="px-2 py-1 bg-amber-100 text-amber-800 border border-amber-300 rounded">MANAGER SIGN-OFF REQUIRED</span>
@@ -463,7 +463,7 @@ export default function PosPage() {
                         )}
                         {bill.status === "open" && !bill.room_charge_pending && selectedBillId === bill.id && (
                           <div className="mt-2 w-full space-y-3 rounded border border-emerald-200 p-3 dark:border-emerald-900">
-                            <div className="grid grid-cols-3 gap-2">
+                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                               {([["cash", "Cash", Banknote], ["mpesa", "M-Pesa", Smartphone], ["card", "Card", CreditCard]] as const).map(([type, label, Icon]) => <label key={type} className="space-y-1"><span className="flex items-center gap-1 text-[10px] font-mono text-neutral-500"><Icon className="h-3 w-3" />{label}</span><input aria-label={`${label} received`} type="number" min="0" value={tenders[type]} onChange={(event) => setTenders({ ...tenders, [type]: event.target.value })} className="w-full rounded border border-neutral-200 bg-neutral-50 px-2 py-2 text-xs font-mono dark:border-neutral-700 dark:bg-neutral-800" /></label>)}
                             </div>
                             {Number(tenders.mpesa) > 0 && <input aria-label="M-Pesa transaction code" value={mpesaReference} onChange={(event) => setMpesaReference(event.target.value.toUpperCase())} placeholder="Verified M-Pesa transaction code" className="w-full rounded border border-neutral-200 bg-neutral-50 px-2 py-2 text-xs font-mono dark:border-neutral-700 dark:bg-neutral-800" />}
@@ -480,7 +480,7 @@ export default function PosPage() {
             <p className="border-t border-neutral-200 pt-3 text-[10px] text-neutral-500 dark:border-neutral-800">DigiTax submissions are sent after payment. A pending status means DigiTax has queued the sale; it is not a confirmed eTIMS receipt yet.</p>
           </section>
         ) : <div className="flex-1 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_390px] gap-4 min-h-0">
-          <section className="relative z-10 min-h-[520px] flex flex-col bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded p-4">
+          <section className="relative z-10 flex min-h-[360px] flex-col rounded border border-neutral-200 bg-white p-3 dark:border-neutral-800 dark:bg-neutral-900 sm:min-h-[520px] sm:p-4">
             <div className="flex flex-col md:flex-row gap-2 mb-3">
               <div className="relative flex-1">
                 <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-neutral-400" />
@@ -490,21 +490,21 @@ export default function PosPage() {
                 {categoryLabels.map((item) => <button key={item.key} onClick={() => setCategory(item.key)} className={`px-2.5 py-1.5 text-xs whitespace-nowrap rounded border ${category === item.key ? "bg-black text-white dark:bg-white dark:text-black border-black dark:border-white" : "border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300"}`}>{item.label}</button>)}
               </div>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2 overflow-y-auto">
+            <div className="grid grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3 xl:grid-cols-4">
               {visibleItems.map((item) => <button key={item.id} onClick={() => addToCart(item)} disabled={!canOperatePos || !activeShift || (canReadInventory && item.stock_tracked && item.stock < 1) || (!canReadInventory && item.stock_tracked && item.stock_available === false)} className="text-left p-3 min-h-28 border border-neutral-200 dark:border-neutral-800 rounded hover:border-neutral-900 dark:hover:border-white disabled:opacity-40 disabled:cursor-not-allowed">
-                <div className="flex items-start justify-between gap-2"><span className="font-semibold text-xs">{item.name}</span>{canOperatePos && <Plus className="w-3.5 h-3.5 shrink-0 text-neutral-500" />}</div>
+                <div className="flex items-start justify-between gap-2"><span className="text-sm font-semibold leading-snug">{item.name}</span>{canOperatePos && <Plus className="w-4 h-4 shrink-0 text-neutral-500" />}</div>
                 <div className="mt-3 text-base font-bold">KSh {item.price.toFixed(2)}</div>
                 <div className="mt-1 text-[10px] font-mono text-neutral-500">{item.sku} • {canReadInventory ? `${item.stock} in stock` : item.stock_tracked ? (item.stock_available ? "Available" : "Out of stock") : "Not stock-tracked"}</div>
               </button>)}
             </div>
           </section>
 
-          <section className="relative z-0 flex flex-col bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded p-4 min-h-[520px]">
+          <section className="relative z-0 flex min-h-[360px] flex-col rounded border border-neutral-200 bg-white p-3 dark:border-neutral-800 dark:bg-neutral-900 sm:min-h-[520px] sm:p-4">
             <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800 pb-3"><h2 className="font-semibold text-sm">Current sale</h2>{canOperatePos && <button onClick={clearCart} className="text-xs text-neutral-500 hover:text-black dark:hover:text-white flex items-center gap-1"><Trash2 className="w-3.5 h-3.5" /> Clear</button>}</div>
             <div className="flex-1 overflow-y-auto py-2 space-y-2">
               {cart.length === 0 ? <div className="h-full min-h-40 flex items-center justify-center text-xs font-mono text-neutral-400">Cart is empty</div> : cart.map((line) => <div key={line.item.id} className="flex items-center justify-between gap-2 py-2 border-b border-neutral-100 dark:border-neutral-800"><div className="min-w-0"><div className="text-xs font-semibold truncate">{line.item.name}</div><div className="text-[10px] font-mono text-neutral-500">KSh {line.item.price.toFixed(2)} each</div></div><div className="flex items-center gap-1">{canOperatePos && <button onClick={() => updateCartQuantity(line.item.id, line.quantity - 1)} className="p-1 border rounded"><Minus className="w-3 h-3" /></button>}<span className="w-6 text-center text-xs font-mono">{line.quantity}</span>{canOperatePos && <button onClick={() => updateCartQuantity(line.item.id, line.quantity + 1)} className="p-1 border rounded"><Plus className="w-3 h-3" /></button>}</div><span className="w-20 text-right text-xs font-mono">KSh {(line.item.price * line.quantity).toFixed(2)}</span></div>)}
             </div>
-            <div className="border-t border-neutral-200 dark:border-neutral-800 pt-3 space-y-3"><div className="flex justify-between text-lg font-bold"><span>Total</span><span>KSh {total.toFixed(2)}</span></div>{canOperatePos ? <><div className="grid grid-cols-3 gap-2">{([['cash', 'Cash', Banknote], ['mpesa', 'M-Pesa', Smartphone], ['card', 'Card', CreditCard]] as const).map(([type, label, Icon]) => <label key={type} className="space-y-1"><span className="flex items-center gap-1 text-[10px] font-mono text-neutral-500"><Icon className="w-3 h-3" />{label}</span><input aria-label={`${label} tender`} type="number" min="0" value={tenders[type]} onChange={(event) => setTenders({ ...tenders, [type]: event.target.value })} className="w-full px-2 py-2 text-xs font-mono border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 rounded" /></label>)}</div>{Number(tenders.mpesa) > 0 && <input aria-label="M-Pesa reference" value={mpesaReference} onChange={(event) => setMpesaReference(event.target.value.toUpperCase())} placeholder="M-Pesa reference e.g. QWE123RTY" className="w-full px-2 py-2 text-xs font-mono border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 rounded" />}<div className={`text-xs font-mono ${Math.abs(tenderTotal - total) < 0.01 ? "text-emerald-600" : "text-neutral-500"}`}>Tendered KSh {tenderTotal.toFixed(2)} • {tenderTotal >= total ? `Change KSh ${(tenderTotal - total).toFixed(2)}` : `Due KSh ${(total - tenderTotal).toFixed(2)}`}</div><button onClick={submitCheckout} disabled={!activeShift || cart.length === 0 || Math.abs(tenderTotal - total) > 0.01} className="w-full py-2.5 bg-black text-white dark:bg-white dark:text-black disabled:opacity-30 disabled:cursor-not-allowed rounded text-xs font-bold flex items-center justify-center gap-2"><WalletCards className="w-4 h-4" /> Complete sale</button></> : <p className="text-xs text-neutral-500">Read-only POS access.</p>}</div>
+            <div className="border-t border-neutral-200 pt-3 space-y-3 dark:border-neutral-800"><div className="flex justify-between text-lg font-bold"><span>Total</span><span>KSh {total.toFixed(2)}</span></div>{canOperatePos ? <><div className="grid grid-cols-1 gap-2 sm:grid-cols-3">{([['cash', 'Cash', Banknote], ['mpesa', 'M-Pesa', Smartphone], ['card', 'Card', CreditCard]] as const).map(([type, label, Icon]) => <label key={type} className="space-y-1"><span className="flex items-center gap-1 text-xs font-mono text-neutral-600 dark:text-neutral-300"><Icon className="w-3.5 h-3.5" />{label}</span><input aria-label={`${label} tender`} type="number" min="0" value={tenders[type]} onChange={(event) => setTenders({ ...tenders, [type]: event.target.value })} className="w-full rounded border border-neutral-200 bg-neutral-50 px-3 py-2.5 text-sm font-mono dark:border-neutral-700 dark:bg-neutral-800" /></label>)}</div>{Number(tenders.mpesa) > 0 && <input aria-label="M-Pesa reference" value={mpesaReference} onChange={(event) => setMpesaReference(event.target.value.toUpperCase())} placeholder="M-Pesa reference e.g. QWE123RTY" className="w-full rounded border border-neutral-200 bg-neutral-50 px-3 py-2.5 text-sm font-mono dark:border-neutral-700 dark:bg-neutral-800" />}<div className={`text-sm font-mono ${Math.abs(tenderTotal - total) < 0.01 ? "text-emerald-600" : "text-neutral-500"}`}>Tendered KSh {tenderTotal.toFixed(2)} • {tenderTotal >= total ? `Change KSh ${(tenderTotal - total).toFixed(2)}` : `Due KSh ${(total - tenderTotal).toFixed(2)}`}</div><button onClick={submitCheckout} disabled={!activeShift || cart.length === 0 || Math.abs(tenderTotal - total) > 0.01} className="flex min-h-11 w-full items-center justify-center gap-2 rounded bg-black py-2.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-30 dark:bg-white dark:text-black"><WalletCards className="w-4 h-4" /> Complete sale</button></> : <p className="text-sm text-neutral-500">Read-only POS access.</p>}</div>
           </section>
         </div>}
         {confirmingEtimsBill && (

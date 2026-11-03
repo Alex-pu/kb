@@ -39,22 +39,22 @@ function TicketCard({ kot, canManage, onTransition, onCancel }: { kot: Kot; canM
   const action = NEXT_STATUS[kot.status];
 
   return (
-    <div className={`border-2 rounded p-3 bg-white dark:bg-neutral-900 ${STATUS_STYLES[kot.status]}`}>
+    <div className={`rounded border-2 bg-white p-4 dark:bg-neutral-900 ${STATUS_STYLES[kot.status]}`}>
       <div className="flex items-center justify-between">
-        <span className="font-bold text-sm">{kot.table_name} • Round {kot.round}</span>
-        <span className={`flex items-center gap-1 text-[10px] font-mono ${isAging ? "text-red-600 font-bold" : "text-neutral-500"}`}>
+        <span className="min-w-0 text-base font-bold leading-snug">{kot.table_name} • Round {kot.round}</span>
+        <span className={`flex shrink-0 items-center gap-1 text-xs font-mono ${isAging ? "text-red-600 font-bold" : "text-neutral-500"}`}>
           <Clock className="w-3 h-3" />{minutes}:{seconds.toString().padStart(2, "0")}
         </span>
       </div>
-      <div className="mt-1 text-[10px] font-mono uppercase tracking-wide text-neutral-500">{kot.status}</div>
+      <div className="mt-1 text-xs font-mono uppercase tracking-wide text-neutral-500">{kot.status}</div>
       <div className="mt-2 space-y-1">
         {kot.lines.map((line) => (
           <div key={line.item.id} className="space-y-1">
-            <div className="flex justify-between text-xs">
+            <div className="flex justify-between text-sm leading-snug">
               <span>{line.quantity} x {line.item.name}</span>
             </div>
             {line.instructions && (
-              <p className="border-l-2 border-amber-400 pl-2 text-[11px] text-amber-700 dark:text-amber-300">
+              <p className="border-l-2 border-amber-400 pl-2 text-sm text-amber-700 dark:text-amber-300">
                 Prep: {line.instructions}
               </p>
             )}
@@ -66,7 +66,7 @@ function TicketCard({ kot, canManage, onTransition, onCancel }: { kot: Kot; canM
       )}
       {action && canManage && (
         <div className="mt-3 flex gap-2">
-          <button onClick={() => onTransition(kot.id, action.next)} className="flex-1 py-2 bg-black text-white dark:bg-white dark:text-black rounded text-xs font-semibold">
+          <button onClick={() => onTransition(kot.id, action.next)} className="flex min-h-11 flex-1 items-center justify-center rounded bg-black py-2 text-sm font-semibold text-white dark:bg-white dark:text-black">
             {action.label}
           </button>
           <button onClick={() => onCancel(kot.id)} className="px-2 border border-neutral-300 dark:border-neutral-700 rounded"><X className="w-3.5 h-3.5" /></button>
@@ -114,16 +114,16 @@ export default function KdsPage() {
 
   return (
     <DashboardShell>
-      <div className="max-w-6xl mx-auto space-y-6">
-        <div className="flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800 pb-3">
+      <div className="mx-auto w-full max-w-6xl space-y-5 sm:space-y-6">
+        <div className="flex flex-col items-start justify-between gap-3 border-b border-neutral-200 pb-3 sm:flex-row sm:items-center dark:border-neutral-800">
           <div>
             <h1 className="text-xl font-bold tracking-tight">Kitchen Display System</h1>
             <p className="text-xs text-neutral-500 font-mono mt-0.5">Phase 3 • Delta KOTs, station routing, ticket state machine</p>
           </div>
-          <div className="flex gap-1">
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto">
             {([["all", "All", null], ["kitchen", "Kitchen", ChefHat], ["bar", "Bar", Beer]] as const).map(([key, label, Icon]) => (
-              <button key={key} onClick={() => setStationFilter(key)} className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded border ${stationFilter === key ? "bg-black text-white dark:bg-white dark:text-black border-black dark:border-white" : "border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300"}`}>
-                {Icon && <Icon className="w-3.5 h-3.5" />}{label}
+              <button key={key} onClick={() => setStationFilter(key)} className={`flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded border px-3 py-2 text-sm sm:flex-none ${stationFilter === key ? "bg-black text-white dark:bg-white dark:text-black border-black dark:border-white" : "border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300"}`}>
+                {Icon && <Icon className="h-4 w-4" />}{label}
               </button>
             ))}
           </div>
