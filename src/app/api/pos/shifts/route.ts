@@ -152,6 +152,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, message: "Shift opened.", shift: serializeShift(shift.row) });
   } catch (error) {
     if (typeof error === "object" && error !== null && "code" in error && error.code === "23505") {
+      if ("constraint" in error && error.constraint === "shifts_one_open_area_per_outlet") {
+        return NextResponse.json({ success: false, message: "A shift is already open for this outlet and work area. Close it before opening another." }, { status: 409 });
+      }
       return NextResponse.json({ success: false, message: "A shift for this area and period has already been recorded today." }, { status: 409 });
     }
     console.error("Failed to open cashier shift.", error);

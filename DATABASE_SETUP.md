@@ -46,6 +46,8 @@ npm run db:migrate
 
 The public landing-page demo form stores contact details in `marketing_leads` via `POST /api/leads`; it records sales leads only and does not create user accounts. Apply the migrations before enabling lead capture.
 
+Migration `036_one_open_shift_per_outlet_area.sql` enforces one open shift per outlet and work area. Stations within the same outlet share a shift; separate outlets (such as a restaurant, bar, gym, or front desk) have separate shifts. If the migration reports existing duplicate open shifts, close those shifts before rerunning `npm run db:migrate`.
+
 ### DigiTax catalog registration
 
 Apply migrations before deploying code that adds or changes database-backed features. Migration `032_digitax_catalog_registration.sql` stores each catalog item's DigiTax profile, registration ID, and sync status.
