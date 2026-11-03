@@ -21,9 +21,8 @@ a{color:inherit;text-decoration:none}
 .hero{position:relative;height:100svh;min-height:640px;overflow:hidden}
 #c{position:absolute;inset:0;width:100%;height:100%;display:block}
 nav{position:absolute;top:0;left:0;right:0;z-index:3;display:flex;align-items:center;justify-content:space-between;padding:22px 28px;max-width:1240px;margin:0 auto}
-.logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:22px;letter-spacing:-.04em}
-.logo i{width:22px;height:22px;border-radius:50%;background:var(--fg);position:relative;display:block}
-.logo i:after{content:"";position:absolute;right:-3px;top:-3px;width:9px;height:9px;background:var(--g);border-radius:50%}
+.logo{display:flex;align-items:center;width:90px;height:54px;flex:none}
+.logo img{display:block;width:100%;height:100%;object-fit:contain}
 .links{display:flex;gap:34px;font-size:13px;text-transform:uppercase;letter-spacing:.06em;font-weight:500}
 .links a{opacity:.7;transition:opacity .2s}.links a:hover{opacity:1}
 .btn{display:inline-flex;align-items:center;gap:10px;padding:12px 20px;border-radius:12px;font-size:14px;font-weight:500;background:var(--fg);color:var(--bg);transition:transform .2s}
@@ -84,7 +83,7 @@ footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
 <header class="hero">
   <canvas id="c" aria-hidden="true"></canvas>
   <nav>
-    <a class="logo" href="#top"><i></i>kore</a>
+    <a class="logo" href="#top" aria-label="Kore Bench home"><img src="/logo.png" alt="Kore Bench System"></a>
     <div class="links"><a href="#system">System</a><a href="#features">Modules</a><a href="#pricing">Plans</a><a href="#contact">Contact</a></div>
     <div style="display:flex;gap:10px"><a class="btn alt" href="/login" target="_top">Staff login</a><a class="btn" href="#contact">Sign up</a></div>
   </nav>

@@ -114,6 +114,9 @@ export default function DiningPage() {
   const [fiscalizationMessages, setFiscalizationMessages] = useState<Record<string, string>>({});
   const [submittingFiscalizationId, setSubmittingFiscalizationId] = useState<string | null>(null);
   const [confirmFiscalizationBillId, setConfirmFiscalizationBillId] = useState<string | null>(null);
+  const [confirmKitchenRound, setConfirmKitchenRound] = useState(false);
+  const [sendingKitchenRound, setSendingKitchenRound] = useState(false);
+  const [kitchenSendError, setKitchenSendError] = useState<string | null>(null);
 
   const activeStays = activeRoomStays;
 
@@ -294,6 +297,9 @@ export default function DiningPage() {
   const settlementAmountValid = Math.abs(tenderTotal - total) < 0.01 || cashChangeAllowed;
   const mpesaReferenceValid = Number(tenders.mpesa) <= 0 || Boolean(mpesaReference.trim());
   const hasUnsentItems = orderLines.some((line) => !line.sentToKitchen);
+  const unsentLines = orderLines.filter((line) => !line.sentToKitchen);
+  const unsentQuantity = unsentLines.reduce((sum, line) => sum + line.quantity, 0);
+  const unsentTotal = unsentLines.reduce((sum, line) => sum + line.item.price * line.quantity, 0);
   const tablesByArea = useMemo(() => floorAreas.map((area) => ({
     area,
     tables: tables.filter((table) => table.floor_area_id === area.id),
@@ -525,6 +531,28 @@ export default function DiningPage() {
     if (result.success) {
       setSelectedTableId(transferTarget);
       setTransferTarget("");
+    }
+  };
+
+  const confirmSendRoundToKitchen = async () => {
+    if (!selectedTableId || !canManageSelectedTable || !unsentLines.length || sendingKitchenRound) return;
+    setSendingKitchenRound(true);
+    setKitchenSendError(null);
+    try {
+      const result = await sendRoundToKitchen(selectedTableId);
+      setMessage(result.message);
+      if (!result.success) {
+        setKitchenSendError(result.message);
+        return;
+      }
+      setConfirmKitchenRound(false);
+      await reloadBillHistory();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "The order could not be sent. Please try again.";
+      setKitchenSendError(errorMessage);
+      setMessage(errorMessage);
+    } finally {
+      setSendingKitchenRound(false);
     }
   };
 
@@ -910,10 +938,11 @@ export default function DiningPage() {
                   {selectedCheck && <span className="text-[10px] font-mono font-semibold text-neutral-500">Bill #{selectedCheck.bill_number}</span>}
                   {canManageSelectedTable && hasUnsentItems && (
                     <button
-                      onClick={() => { void sendRoundToKitchen(selectedTable.id).then(async (result) => { setMessage(result.message); if (result.success) await reloadBillHistory(); }); }}
+                      type="button"
+                      onClick={() => { setKitchenSendError(null); setConfirmKitchenRound(true); }}
                       className="text-[10px] font-mono px-2 py-1 bg-neutral-900 text-white dark:bg-white dark:text-black rounded"
                     >
-                      Send round to stations
+                      Review & send round
                     </button>
                   )}
                 </div>
@@ -1120,6 +1149,47 @@ export default function DiningPage() {
             </div>
           );
         })()}
+
+        {confirmKitchenRound && selectedTable && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="send-kitchen-confirm-title">
+            <section className="w-full max-w-md space-y-4 rounded border border-neutral-300 bg-white p-5 shadow-xl dark:border-neutral-700 dark:bg-neutral-900">
+              <div>
+                <h2 id="send-kitchen-confirm-title" className="text-sm font-bold">Review order before sending</h2>
+                <p className="mt-1 text-xs text-neutral-500">
+                  Check the unsent items for {selectedTable.name}. You can cancel to add or edit items before they go to the kitchen or bar.
+                </p>
+              </div>
+              <div className="max-h-64 space-y-2 overflow-y-auto rounded border border-neutral-200 p-3 dark:border-neutral-700">
+                {unsentLines.map((line) => (
+                  <div key={`${line.item.id}-${line.round}`} className="flex items-start justify-between gap-3 text-xs">
+                    <div className="min-w-0">
+                      <p className="font-semibold">{line.item.name} × {line.quantity}</p>
+                      <p className="mt-0.5 text-[10px] text-neutral-500">
+                        {line.item.prep_station === "bar" ? "Bar" : "Kitchen"}{line.instructions?.trim() ? ` · ${line.instructions.trim()}` : ""}
+                      </p>
+                    </div>
+                    <span className="shrink-0 font-mono">KSh {(line.item.price * line.quantity).toFixed(2)}</span>
+                  </div>
+                ))}
+                {unsentLines.length === 0 && <p className="text-xs text-neutral-500">There are no unsent items. Close this dialog and refresh the order.</p>}
+              </div>
+              <div className="flex items-center justify-between border-t border-neutral-200 pt-3 text-xs dark:border-neutral-700">
+                <span>{unsentQuantity} item{unsentQuantity === 1 ? "" : "s"} · {unsentLines.length} line{unsentLines.length === 1 ? "" : "s"}</span>
+                <span className="font-mono font-semibold">KSh {unsentTotal.toFixed(2)}</span>
+              </div>
+              {kitchenSendError && <p role="alert" className="text-xs text-red-700 dark:text-red-300">{kitchenSendError}</p>}
+              <div className="flex justify-end gap-2">
+                <button type="button" disabled={sendingKitchenRound} onClick={() => setConfirmKitchenRound(false)} className="rounded border border-neutral-300 px-3 py-2 text-xs font-semibold disabled:opacity-50 dark:border-neutral-700">
+                  Cancel & keep editing
+                </button>
+                <button type="button" disabled={!unsentLines.length || sendingKitchenRound} onClick={() => void confirmSendRoundToKitchen()} className="inline-flex items-center gap-2 rounded bg-black px-3 py-2 text-xs font-semibold text-white disabled:opacity-50 dark:bg-white dark:text-black">
+                  {sendingKitchenRound && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  {sendingKitchenRound ? "Sending…" : "Confirm & send"}
+                </button>
+              </div>
+            </section>
+          </div>
+        )}
 
         {lastReceipt && (
           <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
