@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kore Bench | Hospitality, Retail &amp; Property Operations</title>
+<meta name="description" content="A web-based operations platform for hospitality and retail businesses in Kenya. Explore Kore Bench packages and request a scheduled demo.">
+<meta name="theme-color" content="#e9e9e9">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;700&display=swap">
+<style>
+:root{--bg:#e9e9e9;--fg:#0c0c0c;--mut:#5d5d5d;--card:#f6f6f6;--bd:rgba(0,0,0,.12);--ln:168,168,168;--dp:10,10,10;--g:#6be600;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0b0b0b;--fg:#f1f1f1;--mut:#8d8d8d;--card:#141414;--bd:rgba(255,255,255,.12);--ln:62,62,62;--dp:107,230,0;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0b0b0b;--fg:#f1f1f1;--mut:#8d8d8d;--card:#141414;--bd:rgba(255,255,255,.12);--ln:62,62,62;--dp:107,230,0;color-scheme:dark}
+*{box-sizing:border-box;margin:0}
+html{scroll-behavior:smooth;scroll-padding-top:env(safe-area-inset-top,0px)}
+body{background:var(--bg);color:var(--fg);font:400 16px/1.5 "Inter Tight",system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+.wrap{max-width:1240px;margin:0 auto;padding:0 28px}
+.hero{position:relative;height:100svh;min-height:640px;overflow:hidden}
+#c{position:absolute;inset:0;width:100%;height:100%;display:block}
+nav{position:absolute;top:0;left:0;right:0;z-index:3;display:flex;align-items:center;justify-content:space-between;padding:22px 28px;max-width:1240px;margin:0 auto}
+.logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:22px;letter-spacing:-.04em}
+.logo i{width:22px;height:22px;border-radius:50%;background:var(--fg);position:relative;display:block}
+.logo i:after{content:"";position:absolute;right:-3px;top:-3px;width:9px;height:9px;background:var(--g);border-radius:50%}
+.links{display:flex;gap:34px;font-size:13px;text-transform:uppercase;letter-spacing:.06em;font-weight:500}
+.links a{opacity:.7;transition:opacity .2s}.links a:hover{opacity:1}
+.btn{display:inline-flex;align-items:center;gap:10px;padding:12px 20px;border-radius:12px;font-size:14px;font-weight:500;background:var(--fg);color:var(--bg);transition:transform .2s}
+.btn:hover{transform:translateY(-2px)}
+.btn b{width:14px;height:14px;background:var(--g);border-radius:3px;display:block}
+.btn.alt{background:var(--card);color:var(--fg);border:1px solid var(--bd)}
+.copy{position:absolute;z-index:2;left:0;right:0;bottom:0;padding:0 28px 40px;max-width:1240px;margin:0 auto;display:flex;justify-content:space-between;align-items:flex-end;gap:32px;pointer-events:none}
+.copy>*{animation:up .9s .2s both cubic-bezier(.2,.7,.2,1)}
+@keyframes up{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}
+.tag{font-size:12px;text-transform:uppercase;letter-spacing:.14em;color:var(--mut);margin-bottom:14px}
+h1{font-size:clamp(42px,7.4vw,112px);line-height:.9;letter-spacing:-.05em;font-weight:700;text-transform:uppercase}
+h1 em{font-style:normal;background:var(--g);color:#0c0c0c;padding:0 .12em}
+.side{max-width:340px;pointer-events:auto}
+.side p{color:var(--mut);margin-bottom:20px}
+.side div{display:flex;gap:10px;flex-wrap:wrap}
+section{padding:110px 0}
+.k{font-size:12px;text-transform:uppercase;letter-spacing:.14em;color:var(--mut);margin-bottom:18px}
+h2{font-size:clamp(32px,4.6vw,64px);line-height:.98;letter-spacing:-.045em;font-weight:700;max-width:14ch}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:56px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:20px;padding:28px;min-height:240px;display:flex;flex-direction:column;justify-content:space-between;transition:transform .3s}
+.card:hover{transform:translateY(-4px)}
+.card span{font-size:13px;color:var(--mut)}
+.card h3{font-size:24px;letter-spacing:-.03em;line-height:1.05;margin-bottom:8px}
+.card p{color:var(--mut);font-size:15px}
+.plan-card{min-height:360px}
+.plan-card .price{font-size:clamp(28px,3vw,42px);font-weight:700;letter-spacing:-.05em;margin:10px 0}
+.plan-card .price small{font-size:14px;font-weight:400;letter-spacing:0;color:var(--mut)}
+.plan-card ul{padding-left:18px;color:var(--mut);font-size:14px;margin:12px 0 20px}
+.plan-card li+li{margin-top:7px}
+.plan-card .btn{align-self:flex-start}
+#contact{position:relative;overflow:hidden;border-top:1px solid var(--bd)}
+.mail{display:inline-block;margin-top:36px;font-size:clamp(24px,4vw,52px);letter-spacing:-.04em;font-weight:500;border-bottom:3px solid var(--g)}
+.rows{display:flex;gap:56px;flex-wrap:wrap;margin-top:56px;font-size:15px}
+.rows small{display:block;color:var(--mut);font-size:12px;text-transform:uppercase;letter-spacing:.12em;margin-bottom:4px}
+.contact-grid{display:grid;grid-template-columns:.75fr 1.25fr;gap:48px;margin-top:48px;align-items:start}
+.contact-info .mail{margin-top:24px;font-size:clamp(20px,2.4vw,32px)}
+.lead-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;background:var(--card);border:1px solid var(--bd);border-radius:20px;padding:24px}
+.lead-form h3,.lead-form .form-note,.lead-form .form-status,.lead-form .wide{grid-column:1/-1}
+.lead-form h3{font-size:24px;letter-spacing:-.03em}
+.lead-form label{display:grid;gap:6px;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--mut)}
+.lead-form input,.lead-form select,.lead-form textarea{width:100%;padding:11px 12px;border:1px solid var(--bd);border-radius:10px;background:var(--bg);color:var(--fg);font:inherit;font-size:14px}
+.lead-form textarea{min-height:94px;resize:vertical}
+.lead-form button{border:0;cursor:pointer}
+.lead-form button:disabled{opacity:.6;cursor:wait}
+.form-note,.form-status{font-size:13px;color:var(--mut)}
+.form-status[data-state="error"]{color:#c0392b}
+.form-status[data-state="success"]{color:#438c00}
+.px{position:absolute;right:0;bottom:0;width:240px;height:240px;pointer-events:none}
+.px i{position:absolute;background:var(--g);display:block}
+footer{border-top:1px solid var(--bd);padding:26px 0;font-size:13px;color:var(--mut)}
+footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+@media (max-width:780px){.links{display:none}.copy{flex-direction:column;align-items:flex-start;padding-bottom:28px}.grid{grid-template-columns:1fr}.contact-grid{grid-template-columns:1fr;gap:32px}.lead-form{grid-template-columns:1fr;padding:18px}section{padding:80px 0}.px{width:140px;height:140px}}
+@media (max-width:780px){nav{padding:18px 20px}.hero nav .btn{padding:9px 11px;font-size:12px}}
+@media (prefers-reduced-motion:reduce){.copy>*{animation:none}html{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<header class="hero">
+  <canvas id="c" aria-hidden="true"></canvas>
+  <nav>
+    <a class="logo" href="#top"><i></i>kore</a>
+    <div class="links"><a href="#system">System</a><a href="#features">Modules</a><a href="#pricing">Plans</a><a href="#contact">Contact</a></div>
+    <div style="display:flex;gap:10px"><a class="btn alt" href="/login" target="_top">Staff login</a><a class="btn" href="#contact">Sign up</a></div>
+  </nav>
+  <div class="copy" id="top">
+    <div><p class="tag">Hospitality, retail &amp; property operations</p><h1>Everything<br>bends to<br>the <em>core</em></h1></div>
+    <div class="side"><p>One web-based system for the work behind your business. Bring daily operations into one clear, dependable place.</p>
+      <div><a class="btn" href="#features"><b></b>Explore modules</a><a class="btn alt" href="#contact">Request a demo</a></div></div>
+  </div>
+</header>
+
+<section id="system"><div class="wrap">
+  <p class="k">Kore Bench System</p>
+  <h2>One system. Every operation.</h2>
+  <p style="max-width:620px;color:var(--mut);margin-top:20px">Kore Bench brings hospitality, retail, property and back-office work together, with modules that help your team manage the business from one place.</p>
+</div></section>
+
+<section id="features" style="padding-top:0"><div class="wrap">
+  <div class="grid">
+    <div class="card"><span>01 · Hospitality &amp; property</span><div><h3>Guest operations</h3><p>Coordinate front desk, rooms, housekeeping, restaurant tables, kitchen orders and room charges.</p></div></div>
+    <div class="card"><span>02 · Retail &amp; service</span><div><h3>Daily sales</h3><p>Run point of sale, catalog, stock, shifts and outlet activity from a shared web-based workspace.</p></div></div>
+    <div class="card"><span>03 · Back office</span><div><h3>Business control</h3><p>Bring together accounting, reporting, payroll, staff roles and audit history as your operation grows.</p></div></div>
+  </div>
+</div></section>
+
+<section id="pricing" style="padding-top:0"><div class="wrap">
+  <p class="k">Packages</p>
+  <h2>Choose the right constellation.</h2>
+  <div class="grid">
+    <article class="card plan-card"><span>HYDRA CONSTELLATION</span><div><h3>All your operations, connected.</h3><p class="price">KSh 60,000 <small>one-time</small></p><ul><li>Access to all modules</li><li>KSh 20,000 annual maintenance after the first year</li><li>On-call technician support</li></ul><a class="btn" href="#contact">Choose Hydra</a></div></article>
+    <article class="card plan-card"><span>VIRGO CONSTELLATION</span><div><h3>All modules, plus integrations.</h3><p class="price">KSh 60,000 <small>one-time</small></p><ul><li>All modules with eTIMS and M-Pesa integration</li><li>KSh 12,000 annual maintenance after the first year</li><li>On-call technician support</li></ul><a class="btn" href="#contact">Choose Virgo</a></div></article>
+    <article class="card plan-card"><span>URSA MAJOR</span><div><h3>Made for small businesses.</h3><p class="price">KSh 10,000 <small>initial</small></p><ul><li>Web-based access to all modules, tailored for small SMEs</li><li>KSh 1,000 per month</li><li>On-call technician support</li></ul><a class="btn" href="#contact">Choose Ursa Major</a></div></article>
+  </div>
+</div></section>
+
+<section id="contact"><div class="wrap">
+  <p class="k">Get started</p>
+  <h2>Let’s find your fit.</h2>
+  <div class="contact-grid">
+    <div class="contact-info">
+      <p style="color:var(--mut);margin-bottom:20px">Sign up for a conversation or request a scheduled demo. We’ll use your details to follow up; this does not create a system account.</p>
+      <div class="rows" style="margin-top:24px">
+        <div><small>Phone</small><a href="tel:+254704813341">0704813341</a></div>
+        <div><small>Email</small><a href="mailto:info@korebench.co.ke">info@korebench.co.ke</a></div>
+      </div>
+      <a class="mail" href="mailto:info@korebench.co.ke">Let’s talk.</a>
+    </div>
+    <form class="lead-form" id="lead-form">
+      <h3>Request a demo</h3>
+      <label>Name<input name="name" autocomplete="name" maxlength="160" required></label>
+      <label>Organization<input name="organization" autocomplete="organization" maxlength="180" required></label>
+      <label>Email<input type="email" name="email" autocomplete="email" maxlength="254" required></label>
+      <label>Phone / contact<input type="tel" name="phone" autocomplete="tel" maxlength="30" required></label>
+      <label>Package of interest<select name="plan" required><option value="">Select a package</option><option value="hydra">Hydra Constellation</option><option value="virgo">Virgo Constellation</option><option value="ursa-major">Ursa Major</option><option value="not-sure">Help me choose</option></select></label>
+      <label>Preferred demo date and time<input type="datetime-local" name="preferredDemoAt" required></label>
+      <label class="wide">Anything else we should know? (optional)<textarea name="message" maxlength="2000"></textarea></label>
+      <p class="form-note">Your details are recorded as a sales lead only. No account or password is created.</p>
+      <button class="btn" type="submit"><b></b><span>Send demo request</span></button>
+      <p class="form-status" id="form-status" role="status" aria-live="polite"></p>
+    </form>
+  </div>
+</div>
+<div class="px"><i style="right:0;bottom:0;width:80px;height:80px"></i><i style="right:80px;bottom:80px;width:80px;height:80px"></i><i style="right:0;bottom:160px;width:80px;height:80px"></i></div>
+</section>
+
+<footer><div class="wrap"><span>© 2026 Kore Bench System</span><span>All rights reserved</span><a href="/login" target="_top">Staff login</a></div></footer>
+
+<script>
+(()=>{
+const form=document.getElementById('lead-form'),status=document.getElementById('form-status'),button=form.querySelector('button[type="submit"]');
+form.addEventListener('submit',async e=>{
+  e.preventDefault();status.textContent='Sending your request…';status.dataset.state='';button.disabled=true;
+  try{
+    const response=await fetch('/api/leads',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.fromEntries(new FormData(form)))});
+    const result=await response.json();
+    if(!response.ok)throw new Error(result.message||'We could not send your request. Please try again.');
+    form.reset();status.textContent='Thank you. Your demo request has been received; no account was created.';status.dataset.state='success';
+  }catch(error){status.textContent=error instanceof Error?error.message:'We could not send your request. Please try again.';status.dataset.state='error'}
+  finally{button.disabled=false}
+});
+})();
+(()=>{
+const cv=document.getElementById('c'),x=cv.getContext('2d');
+const L=10,NL=29,NS=70,R=1.5,RM=matchMedia('(prefers-reduced-motion:reduce)').matches;
+let W,H,F,cx,cy,pal,q=0,qt=0,A=.5,At=.5,t=RM?2:0,vis=true,last=0;
+const rd=()=>{const s=getComputedStyle(document.documentElement),p=n=>s.getPropertyValue(n).split(',').map(Number);pal={l:p('--ln'),d:p('--dp')}};
+const fit=()=>{const d=Math.min(devicePixelRatio||1,2),b=cv.getBoundingClientRect();W=b.width;H=b.height;cv.width=W*d;cv.height=H*d;x.setTransform(d,0,0,d,0,0);F=Math.max(W*.8,H*1.05);cx=W/2;cy=H*.42;rd();if(RM){track(0,0);draw()}};
+let px=-7.4,pz=5.6,vx=3.4,vz=-2.5,al=0,ent=false,mx=0,mz=0,mw=0,mxT=0,mzT=0,mwT=0;
+const M=[1,0,0,0,1,0,0,0,1],RL=6.4,K=16,CD=.9,Dd=u=>.9*(1+.05*Math.sin(u*1.3));
+const dent=(a,b)=>-2.8*mw/(1+((a-mx)*(a-mx)+(b-mz)*(b-mz))/8);
+const ter=(a,b,D)=>-D/(1+(a*a+b*b)/4.5)+dent(a,b);
+const hg=(a,b,D)=>{const r2=a*a+b*b;return ter(a,b,D)-.4/(1+((a-px)*(a-px)+(b-pz)*(b-pz))/1.6)+.09*Math.sin(Math.sqrt(r2)*2.4-t*2.2)*Math.exp(-r2/26)};
+function track(dt,D){
+  if(RM){px=pz=0;al=1;return}
+  al=Math.min(1,al+dt/.8);
+  mx+=(mxT-mx)*.12;mz+=(mzT-mz)*.12;mw+=(mwT-mw)*.06;
+  const e=.05,gx=(ter(px+e,pz,D)-ter(px-e,pz,D))/(2*e),gz=(ter(px,pz+e,D)-ter(px,pz-e,D))/(2*e);
+  let ax=-K*gx-CD*vx,az=-K*gz-CD*vz,r=Math.hypot(px,pz);
+  if(r<RL)ent=true;
+  if(ent&&r>RL){const o=(r-RL)*40;ax-=o*px/r;az-=o*pz/r}
+  vx+=ax*dt;vz+=az*dt;px+=vx*dt;pz+=vz*dt;
+  r=Math.hypot(px,pz);
+  if(ent&&r>RL+.5){const k=(RL+.5)/r;px*=k;pz*=k;const vr=(vx*px+vz*pz)/(RL+.5);if(vr>0){vx-=vr*px/(RL+.5);vz-=vr*pz/(RL+.5)}}
+  const sp=Math.hypot(vx,vz),th=sp*dt/R;
+  if(th>1e-5){const kx=-vz/sp,kz=-vx/sp,c=Math.cos(th),s=Math.sin(th),
+    R3=[c+(1-c)*kx*kx,-s*kz,(1-c)*kx*kz,s*kz,c,-s*kx,(1-c)*kx*kz,s*kx,c+(1-c)*kz*kz],o=M.slice();
+    for(let i=0;i<3;i++)for(let j=0;j<3;j++)M[i*3+j]=R3[i*3]*o[j]+R3[i*3+1]*o[3+j]+R3[i*3+2]*o[6+j]}
+}
+const P=(a,y,b)=>{const c=Math.cos(q),s=Math.sin(q),ca=Math.cos(A),sa=Math.sin(A),x1=a*c-b*s,z1=a*s+b*c,k=F/(14+z1*ca-y*sa);return[cx+x1*k,cy-(y*ca+z1*sa)*k,k,z1]};
+function ball(p,r,c0,c1,c2){const g=x.createRadialGradient(p[0]-r*.3,p[1]-r*.35,0,p[0],p[1],r*1.1);g.addColorStop(0,c0);g.addColorStop(.5,c1);g.addColorStop(1,c2);x.fillStyle=g;x.beginPath();x.arc(p[0],p[1],r,0,7);x.fill()}
+const spr=document.createElement('canvas'),sc=spr.getContext('2d');
+function drawBall(sp,rr){
+  const S=Math.max(16,Math.min(220,Math.round(rr*2*Math.min(devicePixelRatio||1,1.5))));
+  if(spr.width!==S)spr.width=spr.height=S;
+  const im=sc.createImageData(S,S),d=im.data,hh=S/2,ca=Math.cos(A),sa=Math.sin(A),ox=px*.04,oz=pz*.03;
+  for(let j=0;j<S;j++)for(let i=0;i<S;i++){
+    const nx=(i+.5-hh)/hh,ny=-(j+.5-hh)/hh,q2=nx*nx+ny*ny,dist=Math.sqrt(q2);
+    if(dist>1+1.5/hh)continue;
+    const nz=Math.sqrt(Math.max(0,1-q2)),rxx=2*nz*nx,ry0=2*nz*ny,rz0=2*nz*nz-1,
+      rx=rxx+ox,ry=ry0*ca+rz0*sa+oz,rz=rz0*ca-ry0*sa;
+    let r_,g_,b_;
+    if(ry>0){const s=Math.sqrt(ry);r_=g_=b_=.05+.3*s;
+      const k1=Math.exp(-((rx+.5)*(rx+.5)/.06+(ry-.6)*(ry-.6)/.03)),k2=Math.exp(-((rx-.8)*(rx-.8)/.012+(ry-.3)*(ry-.3)/.3));
+      r_+=k1*.95+k2*.5;g_+=k1*.95+k2*.55;b_+=k1+k2*.6}
+    else{const f=.1-ry,u=rx/f,v=rz/f,fu=((u*.8)%1+1)%1,fv=((v*.8)%1+1)%1,
+      li=Math.max(Math.max(0,1-Math.min(fu,1-fu)*16),Math.max(0,1-Math.min(fv,1-fv)*16))/(1+.2*Math.abs(u)+.15*Math.abs(v)),
+      kg=Math.exp(-((rx-.5)*(rx-.5)/.2+(ry+.4)*(ry+.4)/.05));
+      r_=.02+li*.3+kg*.2;g_=.03+li*.45+kg*.9;b_=.02+li*.3+kg*.05}
+    const hz=Math.exp(-ry*ry/.002)*.3;r_+=hz;g_+=hz;b_+=hz;
+    const fe=.3+.7*Math.pow(1-nz,3),dt=rxx*-.42+ry0*.62+rz0*.66,
+      sg=Math.pow(Math.max(0,dt),220)*1.4+Math.pow(Math.max(0,dt),18)*.12,
+      df=Math.max(0,-nx*.42+ny*.62+nz*.66)*.05,rim=Math.pow(1-nz,3)*Math.max(0,nx*.5-ny*.7)*.8,
+      al2=Math.max(0,Math.min(1,(1-dist)*hh+.5)),k=(j*S+i)*4;
+    d[k]=Math.min(255,(r_*fe+sg+df+rim*.4)*255);d[k+1]=Math.min(255,(g_*fe+sg+df+rim)*255);d[k+2]=Math.min(255,(b_*fe+sg+df+rim*.05)*255);d[k+3]=al2*255}
+  sc.putImageData(im,0,0);x.drawImage(spr,sp[0]-rr,sp[1]-rr,rr*2,rr*2)
+}
+function draw(){
+  x.clearRect(0,0,W,H);
+  const D=Dd(t),h0=hg(px,pz,D),sy=h0+R*.8+.06*Math.sin(t*1.7);
+  const sp=P(px,sy,pz),rr=R*sp[2];
+  for(let ax=0;ax<2;ax++)for(let i=0;i<NL;i++){
+    const v=-L+2*L*i/(NL-1);let pr=null,pa=0,pw=0;
+    for(let j=0;j<=NS;j++){
+      const w=-L+2*L*j/NS,a=ax?w:v,b=ax?v:w,h=hg(a,b,D),p=P(a,h,b);
+      const f=Math.max(0,1-Math.hypot(a,b)/(L*1.02)),dw=Math.pow(Math.max(0,Math.min(1,-h/D)),1.5);
+      if(pr){const mx=(p[0]+pr[0])/2,my=(p[1]+pr[1])/2;
+        if(!(p[3]<0&&Math.hypot(mx-sp[0],my-sp[1])<rr*1.02)){
+          const w2=(dw+pw)/2,c=pal.l.map((u,n)=>u+(pal.d[n]-u)*w2|0);
+          x.strokeStyle=`rgba(${c},${(f+pa)/2*.95})`;x.lineWidth=1+w2*.7;
+          x.beginPath();x.moveTo(pr[0],pr[1]);x.lineTo(p[0],p[1]);x.stroke()}}
+      pr=p;pa=f;pw=dw}}
+  x.globalAlpha=al;
+  // contact shadow
+  const B=P(px,h0,pz);x.save();x.translate(B[0],B[1]+rr*.1);x.scale(1,.38);
+  let g=x.createRadialGradient(0,0,0,0,0,rr*1.7);g.addColorStop(0,'rgba(0,0,0,.6)');g.addColorStop(.35,'rgba(0,0,0,.28)');g.addColorStop(1,'rgba(0,0,0,0)');
+  x.fillStyle=g;x.fillRect(-rr*2,-rr*2,rr*4,rr*4);x.restore();
+  // sphere
+  drawBall(sp,rr);
+  x.save();x.translate(sp[0],sp[1]);x.beginPath();x.arc(0,0,rr,0,7);x.clip();
+  const fr=()=>{};
+  g=x.createRadialGradient(-rr*.3,-rr*.35,0,0,0,rr*1.15);g.addColorStop(0,'#3a3a3a');g.addColorStop(.5,'#0e0e0e');g.addColorStop(1,'#000');x.fillStyle=g;fr();
+  g=x.createLinearGradient(0,-rr,0,rr);g.addColorStop(0,'rgba(235,242,250,.5)');g.addColorStop(.46,'rgba(150,160,170,.2)');g.addColorStop(.5,'rgba(0,0,0,.6)');g.addColorStop(1,'rgba(107,230,0,.3)');x.fillStyle=g;fr();
+  g=x.createRadialGradient(0,0,rr*.5,0,0,rr);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,'rgba(0,0,0,.6)');x.fillStyle=g;fr();
+  g=x.createRadialGradient(rr*.3,rr*.4,rr*.55,0,0,rr*1.02);g.addColorStop(0,'rgba(107,230,0,0)');g.addColorStop(1,'rgba(107,230,0,.55)');x.fillStyle=g;fr();
+  x.lineWidth=Math.max(1,rr/70);x.strokeStyle='rgba(0,0,0,.4)';
+  const mv=(a)=>[M[0]*a[0]+M[1]*a[1]+M[2]*a[2],M[3]*a[0]+M[4]*a[1]+M[5]*a[2],M[6]*a[0]+M[7]*a[1]+M[8]*a[2]];
+  for(let c=0;c<3;c++){x.beginPath();let on=false;
+    for(let k=0;k<=72;k++){const p=k/72*6.2832,u=Math.cos(p),w=Math.sin(p),v=mv(c==0?[u,w,0]:c==1?[0,u,w]:[u,0,w]);
+      if(v[2]>0){on?x.lineTo(v[0]*rr,-v[1]*rr):x.moveTo(v[0]*rr,-v[1]*rr);on=true}else on=false}
+    x.stroke()}
+  const led=mv([.55,-.35,.76]);
+  if(led[2]>0){x.shadowColor='#6be600';x.shadowBlur=rr*.2;x.fillStyle='#8dff1f';x.beginPath();x.arc(led[0]*rr,-led[1]*rr,rr*.065*(led[2]+.3),0,7);x.fill();x.shadowBlur=0}
+  x.save();x.translate(-rr*.34,-rr*.5);x.rotate(-.55);x.scale(1,.42);
+  g=x.createRadialGradient(0,0,0,0,0,rr*.34);g.addColorStop(0,'rgba(255,255,255,.95)');g.addColorStop(.6,'rgba(255,255,255,.5)');g.addColorStop(1,'rgba(255,255,255,0)');x.fillStyle=g;fr();x.restore();
+  x.restore();
+  x.globalAlpha=1;
+}
+function loop(ts){const dt=Math.min(.05,(ts-last)/1000||.016);last=ts;if(vis){t+=dt;track(dt,Dd(t));q+=(qt-q)*.05;A+=(At-A)*.05;draw()}requestAnimationFrame(loop)}
+addEventListener('resize',fit);
+addEventListener('pointermove',e=>{
+  const b=cv.getBoundingClientRect(),sx=e.clientX-b.left,sy=e.clientY-b.top;
+  if(sy<0||sy>H){mwT=0;return}
+  qt=(sx/W-.5)*.3;At=.5+(sy/H-.5)*.1;
+  const ca=Math.cos(A),sa=Math.sin(A),Y=cy-sy,den=1-Y*ca/(F*sa);
+  let z1=Y*14/(F*sa)/Math.max(.2,den);z1=Math.max(-9,Math.min(9,z1));
+  const x1=(sx-cx)*(14+z1*ca)/F,c=Math.cos(q),s=Math.sin(q);
+  let a=x1*c+z1*s,bz=-x1*s+z1*c;const r=Math.hypot(a,bz);if(r>RL){a*=RL/r;bz*=RL/r}
+  mxT=a;mzT=bz;mwT=1});
+document.documentElement.addEventListener('mouseleave',()=>{mwT=0});
+try{matchMedia('(prefers-color-scheme:dark)').addEventListener('change',rd)}catch(e){}
+new IntersectionObserver(e=>{vis=e[0].isIntersecting}).observe(cv);
+fit();if(!RM)requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

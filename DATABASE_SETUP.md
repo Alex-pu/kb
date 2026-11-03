@@ -44,6 +44,8 @@ SQL schema files live in `db/migrations/*.sql`, applied in filename order and tr
 npm run db:migrate
 ```
 
+The public landing-page demo form stores contact details in `marketing_leads` via `POST /api/leads`; it records sales leads only and does not create user accounts. Apply the migrations before enabling lead capture.
+
 ### DigiTax catalog registration
 
 Apply migrations before deploying code that adds or changes database-backed features. Migration `032_digitax_catalog_registration.sql` stores each catalog item's DigiTax profile, registration ID, and sync status.

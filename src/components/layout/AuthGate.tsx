@@ -6,7 +6,7 @@ import { useTenantStore } from "@/lib/store/tenant-store";
 import { Loader2, LogOut } from "lucide-react";
 import { landingPageForUser, permissionForPage } from "@/lib/auth/permissions";
 
-const PUBLIC_ROUTES = new Set(["/login"]);
+const PUBLIC_ROUTES = new Set(["/", "/login"]);
 
 /** Hydrates the session on load and gates every route behind a real signed-in user. */
 export function AuthGate({ children }: { children: React.ReactNode }) {
@@ -38,6 +38,10 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       router.replace(landingPage);
     }
   }, [authLoading, canViewPage, isAuthenticated, landingPage, pathname, router]);
+
+  if (authLoading && pathname === "/") {
+    return <>{children}</>;
+  }
 
   if (authLoading) {
     return (

@@ -94,7 +94,7 @@ export function isPayrollManagerRole(roleKey: string | undefined): boolean {
 }
 
 const PAGE_PERMISSIONS: ReadonlyArray<readonly [string, string]> = [
-  ["/", "dashboard:read"],
+  ["/dashboard", "dashboard:read"],
   ["/users", "users:manage"],
   ["/roles", "roles:manage"],
   ["/pos", "pos:read"],
@@ -119,7 +119,7 @@ export function permissionForPage(pathname: string): string | null {
 }
 
 const LANDING_PAGE_CANDIDATES = [
-  "/",
+  "/dashboard",
   "/pos",
   "/dining",
   "/housekeeping",

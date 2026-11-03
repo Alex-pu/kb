@@ -21,7 +21,7 @@ export default function LoginPage() {
     try {
       const result = await login(identifier, credential, method);
       if (result.success) {
-        router.push("/");
+        router.push("/dashboard");
       } else {
         setError(result.message || "Invalid credentials.");
       }

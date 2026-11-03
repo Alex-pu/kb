@@ -4,8 +4,8 @@ import { OfflineSyncBootstrap } from "@/components/layout/OfflineSyncBootstrap";
 import { AuthGate } from "@/components/layout/AuthGate";
 
 export const metadata: Metadata = {
-  title: "Kore Bench | SME Operations & POS Platform",
-  description: "Unified Point of Sale, PMS, and Operations Platform for Kenyan SMEs",
+  title: "Kore Bench | Hospitality, Retail & Property Operations",
+  description: "A web-based operations platform for hospitality and retail businesses in Kenya.",
   manifest: "/manifest.webmanifest",
 };
 
