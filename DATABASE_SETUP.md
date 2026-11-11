@@ -73,7 +73,21 @@ npm run db:migrate
 npm run db:bootstrap
 ```
 
-You'll be prompted for the super-admin name, email, and password. Bootstrap refuses to create another platform super admin if one already exists. Do not send the password in chat or commit it to source control.
+You'll be prompted for the super-admin name, email, and password twice; password input is hidden. Bootstrap refuses to create another platform super admin if one already exists. Do not send the password in chat or commit it to source control.
+
+### Recover access to an existing super admin
+
+If login reports invalid credentials, reset the existing account's password from the server directory using the database connection in `.env.local`:
+
+```bash
+npm run db:reset-super-admin-password
+```
+
+Enter the existing super-admin email, type `RESET` to confirm the account, then enter and retype a new password. Input is hidden, the stored password remains bcrypt-hashed, and existing sessions are revoked. This command updates only the matching active super-admin; it does not create another account.
+
+### Manage Postgres visually
+
+For this Postgres/Neon database, use **DBeaver Community** (Windows, macOS, or Linux) or **pgAdmin 4**. You can also use Neon Console's SQL Editor for queries. In DBeaver, create a PostgreSQL connection using the host, database, username, password, and SSL/TLS settings from the server's `DATABASE_URL`; never paste the connection string into chat or expose it in a screenshot. Use a least-privilege database account for routine browsing, and avoid editing production data directly unless you have a backup and understand the related application constraints.
 
 ## 4. Create your first property
 

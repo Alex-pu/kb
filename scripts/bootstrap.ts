@@ -9,6 +9,7 @@ import path from "node:path";
 import readline from "node:readline/promises";
 import bcrypt from "bcryptjs";
 import { Pool } from "pg";
+import { askConfirmedPassword } from "./password-prompt";
 
 loadEnv({ path: path.resolve(process.cwd(), ".env.local") });
 loadEnv();
@@ -31,45 +32,6 @@ async function askRequired(rl: readline.Interface, question: string): Promise<st
     if (answer) return answer;
     console.log("This value is required.");
   }
-}
-
-async function askSecret(question: string): Promise<string> {
-  const input = process.stdin;
-  if (!input.isTTY || typeof input.setRawMode !== "function") {
-    throw new Error("Run this bootstrap from an interactive terminal so the password can be entered without echo.");
-  }
-
-  process.stdout.write(`${question}: `);
-  return new Promise((resolve, reject) => {
-    let value = "";
-    const finish = (error?: Error) => {
-      input.off("data", onData);
-      input.setRawMode(false);
-      process.stdout.write("\n");
-      if (error) reject(error);
-      else resolve(value);
-    };
-    const onData = (chunk: Buffer) => {
-      for (const character of chunk.toString("utf8")) {
-        if (character === "\u0003") {
-          finish(new Error("Bootstrap cancelled."));
-          return;
-        }
-        if (character === "\r" || character === "\n") {
-          finish();
-          return;
-        }
-        if (character === "\u0008" || character === "\u007f") {
-          value = value.slice(0, -1);
-        } else if (character >= " ") {
-          value += character;
-        }
-      }
-    };
-    input.setRawMode(true);
-    input.resume();
-    input.on("data", onData);
-  });
 }
 
 async function main() {
@@ -111,10 +73,7 @@ async function main() {
       throw new Error("Enter a valid email address (maximum 255 characters).");
     }
     rl.close();
-    const password = await askSecret("Password (12–128 characters; input is hidden)");
-    if (password.length < 12 || password.length > 128) {
-      throw new Error("Password must be between 12 and 128 characters.");
-    }
+    const password = await askConfirmedPassword();
 
     const { rows: [existingUser] } = await pool.query<{ exists: boolean }>(
       `SELECT EXISTS (SELECT 1 FROM users WHERE lower(email) = $1) AS exists`,

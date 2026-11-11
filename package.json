@@ -9,7 +9,8 @@
     "lint": "next lint",
     "test:stock": "tsx scripts/test-stock-workflows.ts",
     "db:migrate": "tsx scripts/migrate.ts",
-    "db:bootstrap": "tsx scripts/bootstrap.ts"
+    "db:bootstrap": "tsx scripts/bootstrap.ts",
+    "db:reset-super-admin-password": "tsx scripts/reset-super-admin-password.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
