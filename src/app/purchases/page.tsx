@@ -87,7 +87,7 @@ function getWeekStart(date: Date) {
 }
 
 export default function PurchasesPage() {
-  const { activeOutlet, hasPermission, loadStockWorkspace } = useTenantStore();
+  const { activeOutlet, activeProperty, currentUser, hasPermission, loadStockWorkspace } = useTenantStore();
   const canManagePurchases = hasPermission("inventory:manage");
   const today = useMemo(() => new Date(), []);
   const [fromDate, setFromDate] = useState(localDate(today));
@@ -368,7 +368,8 @@ export default function PurchasesPage() {
     const rows = purchases.map((purchase) => `
       <article class="purchase">
         <div class="purchase-heading">
-          <div><strong>${escapeHtml(purchase.supplier_name)}</strong><div>${escapeHtml(purchase.purchase_date)} · ${purchase.status.toUpperCase()}</div></div>
+          <div><strong>${escapeHtml(purchase.supplier_name)}</strong><div>${escapeHtml(purchase.purchase_date)} · ${purchase.status.toUpperCase()}</div>
+          <div>Saved by ${escapeHtml(purchase.created_by_name)}${purchase.ordered_by_name ? ` · Ordered by ${escapeHtml(purchase.ordered_by_name)}` : ""}${purchase.received_by_name ? ` · Received by ${escapeHtml(purchase.received_by_name)}` : ""}</div></div>
           <strong>${money(purchase.total)}</strong>
         </div>
         <table><thead><tr><th>Product</th><th>Pieces</th><th>Unit price</th><th>Total</th></tr></thead>
@@ -380,10 +381,14 @@ export default function PurchasesPage() {
         <div class="purchase-total">Purchase total: ${money(purchase.total)}</div>
       </article>
     `).join("");
-    printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Purchases ${escapeHtml(fromDate)} to ${escapeHtml(toDate)}</title>
+    const propertyName = activeProperty?.name || "Property";
+    const exportedBy = currentUser?.full_name || currentUser?.email || "Unknown user";
+    const exportedAt = new Date().toLocaleString("en-KE");
+    printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(propertyName)} — Purchase report ${escapeHtml(fromDate)} to ${escapeHtml(toDate)}</title>
       <style>
         body{font:12px Arial,sans-serif;color:#111;margin:24px}
-        h1{font-size:20px;margin:0 0 4px}p{margin:0 0 18px;color:#555}
+        h1{font-size:22px;margin:0 0 3px}h2{font-size:16px;margin:0 0 4px}p{margin:0 0 5px;color:#555}
+        .report-meta{margin-bottom:18px;color:#555;font-size:11px}
         .purchase{page-break-inside:avoid;border-top:1px solid #bbb;padding:12px 0}
         .purchase-heading{display:flex;justify-content:space-between;margin-bottom:8px}
         .purchase-heading div{margin-top:4px;color:#555;font-size:11px}
@@ -392,8 +397,9 @@ export default function PurchasesPage() {
         .purchase-total{text-align:right;font-weight:bold;margin-top:8px}
         .grand-total{border-top:2px solid #111;padding-top:10px;text-align:right;font-size:14px;font-weight:bold}
         @media print{body{margin:12mm}}
-      </style></head><body><h1>Purchase report</h1>
+      </style></head><body><h1>${escapeHtml(propertyName)}</h1><h2>Purchase report</h2>
       <p>${escapeHtml(fromDate)} to ${escapeHtml(toDate)} · Status: ${escapeHtml(statusFilter)}</p>
+      <div class="report-meta">Report exported by ${escapeHtml(exportedBy)} · ${escapeHtml(exportedAt)}</div>
       ${rows || "<p>No purchases in this date range and status.</p>"}
       <div class="grand-total">Report total: ${money(purchases.reduce((total, purchase) => total + purchase.total, 0))}</div>
       <script>window.onload=()=>window.print()</script></body></html>`);
