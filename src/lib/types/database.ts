@@ -67,6 +67,7 @@ export interface User {
   email?: string;
   phone_number?: string;
   is_active: boolean;
+  is_super_admin: boolean;
   created_at: string;
   updated_at: string;
 }

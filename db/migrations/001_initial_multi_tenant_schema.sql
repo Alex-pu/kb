@@ -186,4 +186,5 @@ CREATE POLICY stations_tenant_isolation ON stations
     );
 
 -- No demo/placeholder data is seeded here. Run `npm run db:bootstrap` after the
--- migrations to create your real company, property, outlet, roles and admin user.
+-- migrations to create the platform super-admin; create tenant properties in
+-- the authenticated platform workspace.

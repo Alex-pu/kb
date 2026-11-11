@@ -13,13 +13,14 @@ export interface AuthenticatedUserRow {
   password_hash: string;
   pin_hash: string | null;
   is_active: boolean;
+  is_super_admin: boolean;
 }
 
 /** Looks up a user by email or phone number for login. Does not check RLS — `users` has no policy defined, so this relies on the app connecting with the table-owning role (see DATABASE_SETUP.md). */
 export async function findUserByIdentifier(identifier: string): Promise<AuthenticatedUserRow | null> {
   const cleaned = identifier.trim().toLowerCase();
   const result = await query<AuthenticatedUserRow>(
-    `SELECT id, company_id, full_name, email, phone_number, password_hash, pin_hash, is_active
+    `SELECT id, company_id, full_name, email, phone_number, password_hash, pin_hash, is_active, is_super_admin
      FROM users
      WHERE (email IS NOT NULL AND lower(email) = $1)
         OR (phone_number IS NOT NULL AND regexp_replace(phone_number, '\\s+', '', 'g') = regexp_replace($2, '\\s+', '', 'g'))
@@ -185,7 +186,7 @@ export async function hasCashierOutletReservations(sessionId: string, userId: st
  */
 export async function getUserBundle(userId: string): Promise<UserBundle | null> {
   const userResult = await query<User & { company_id: string }>(
-    `SELECT id, company_id, full_name, email, phone_number, is_active, created_at, updated_at
+    `SELECT id, company_id, full_name, email, phone_number, is_active, is_super_admin, created_at, updated_at
      FROM users WHERE id = $1 AND is_active = TRUE`,
     [userId]
   );
@@ -330,6 +331,7 @@ export async function getUserBundle(userId: string): Promise<UserBundle | null> 
       email: user.email ?? undefined,
       phone_number: user.phone_number ?? undefined,
       is_active: user.is_active,
+      is_super_admin: user.is_super_admin,
       created_at: user.created_at,
       updated_at: user.updated_at,
     },

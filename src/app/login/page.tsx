@@ -21,7 +21,7 @@ export default function LoginPage() {
     try {
       const result = await login(identifier, credential, method);
       if (result.success) {
-        router.push("/dashboard");
+        router.push(result.isSuperAdmin ? "/super-admin" : "/dashboard");
       } else {
         setError(result.message || "Invalid credentials.");
       }

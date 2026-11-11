@@ -12,8 +12,10 @@ const PUBLIC_ROUTES = new Set(["/", "/login"]);
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { isAuthenticated, authLoading, hydrateSession, hasPermission, logout } = useTenantStore();
+  const { isAuthenticated, authLoading, hydrateSession, hasPermission, logout, currentUser } = useTenantStore();
   const requiredPermission = permissionForPage(pathname);
+  const isSuperAdmin = currentUser?.is_super_admin === true;
+  const isSuperAdminRoute = pathname === "/super-admin" || pathname.startsWith("/super-admin/");
   const canAccessRooms = hasPermission("frontdesk:read") ||
     hasPermission("housekeeping:write") || hasPermission("rooms:manage");
   const canViewPermission = (permission: string) =>
@@ -33,12 +35,18 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     const isPublic = PUBLIC_ROUTES.has(pathname);
     if (!isAuthenticated && !isPublic) {
       router.replace("/login");
+    } else if (isAuthenticated && isSuperAdmin && !isPublic && !isSuperAdminRoute) {
+      router.replace("/super-admin");
+    } else if (isAuthenticated && !isSuperAdmin && isSuperAdminRoute && landingPage) {
+      router.replace(landingPage);
     } else if (isAuthenticated && isPublic && landingPage) {
       router.replace(landingPage);
+    } else if (isAuthenticated && isPublic && isSuperAdmin) {
+      router.replace("/super-admin");
     } else if (isAuthenticated && !isPublic && !canViewPage && landingPage) {
       router.replace(landingPage);
     }
-  }, [authLoading, canViewPage, isAuthenticated, landingPage, pathname, router]);
+  }, [authLoading, canViewPage, isAuthenticated, isSuperAdmin, isSuperAdminRoute, landingPage, pathname, router]);
 
   if (pathname === "/") {
     return <>{children}</>;
@@ -56,7 +64,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     return null;
   }
 
-  if (isAuthenticated && !PUBLIC_ROUTES.has(pathname) && !landingPage) {
+  if (isAuthenticated && !isSuperAdmin && !PUBLIC_ROUTES.has(pathname) && !landingPage) {
     return (
       <main className="min-h-screen flex items-center justify-center bg-neutral-100 dark:bg-neutral-950 p-6">
         <section className="max-w-md space-y-3 text-center">
@@ -74,6 +82,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     );
   }
 
+  if (isAuthenticated && isSuperAdminRoute && !isSuperAdmin) return null;
   if (isAuthenticated && requiredPermission && !canViewPage) return null;
 
   return <>{children}</>;

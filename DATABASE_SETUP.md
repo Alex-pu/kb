@@ -64,19 +64,20 @@ Only a role explicitly assigned **Issue eTIMS receipts** (`restaurant:fiscalize`
 
 Migration `033_casual_payroll.sql` creates a property-scoped casual worker register and weekly payroll folios. The **Casual Payroll** workspace lets administrators and accountants maintain worker IDs, departments, phone numbers, daily rates, and active status; record attendance for each Sunday-to-Saturday day; and track deductions, partial or full payments, worker signatures, notes, department subtotals, balances owed, and folio sign-offs. Use **Print / Export PDF** on a weekly folio to open the browser print dialog; print it directly or choose **Save as PDF**. Folio numbers are generated per property. The migration and role setup grant `payroll:manage` to administrator and accountant roles; administrator roles with full (`*`) permissions already have access. Apply migrations before using this workspace.
 
-## 3. Bootstrap your real company
+## 3. Create the platform super admin
 
-There is no seed/demo data. Run the interactive bootstrap script once against your empty database to create your actual company, property, outlet, till station, roles, and admin (and optionally cashier) login:
+There is no seed/demo data. Apply the migrations, then run the interactive bootstrap once to create the platform super-admin login. It does not create a tenant company, property, outlet, or demo data. The password prompt is hidden:
 
 ```powershell
+npm run db:migrate
 npm run db:bootstrap
 ```
 
-You'll be prompted for real values (company name, property/outlet names, admin email + password, etc.) — nothing is invented for you.
+You'll be prompted for the super-admin name, email, and password. Bootstrap refuses to create another platform super admin if one already exists. Do not send the password in chat or commit it to source control.
 
-## 4. Sign in
+## 4. Create your first property
 
-Once bootstrapped, log in at `/login` with the admin email/password you entered. From there you can create additional roles/users as the relevant admin screens are wired up (tracked separately — see project notes on staged rollout).
+Sign in at `/login` with the platform super-admin email and password. The platform workspace lets you create a company, its first property, outlet and station, and the first property administrator in one transaction. The new property administrator can then sign in and manage that tenant; the platform super admin is not assigned access to tenant data.
 
 Cashier sessions reserve every outlet covered by the cashier's assignments until logout or session expiry. A second cashier cannot sign in while any of those outlets are reserved. Cashiers already signed in when this restriction is deployed must sign in again to establish their outlet reservations. POS and reservation shifts remain separate, and each outlet can have only one recorded shift per area, business date, and period.
 

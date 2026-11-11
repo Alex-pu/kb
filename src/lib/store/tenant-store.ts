@@ -388,7 +388,7 @@ interface TenantState {
   pendingMpesaPayments: DarajaPaymentRecord[];
 
   // Actions
-  login: (identifier: string, credential: string, method?: "password" | "pin") => Promise<{ success: boolean; message: string }>;
+  login: (identifier: string, credential: string, method?: "password" | "pin") => Promise<{ success: boolean; message: string; isSuperAdmin?: boolean }>;
   logout: () => Promise<void>;
   hydrateSession: () => Promise<void>;
   hasPermission: (permission: string) => boolean;
@@ -532,7 +532,7 @@ export const useTenantStore = create<TenantState>()(
           }
           const data = await res.json();
           applyUserBundle(set, data);
-          void get().loadCatalog();
+          if (!data.user.is_super_admin) void get().loadCatalog();
         } catch {
           set({ authLoading: false, isAuthenticated: false });
         }
@@ -553,8 +553,8 @@ export const useTenantStore = create<TenantState>()(
             return { success: false, message: data.message || "Sign-in failed." };
           }
           applyUserBundle(set, data);
-          void get().loadCatalog();
-          return { success: true, message: "Signed in." };
+          if (!data.user.is_super_admin) void get().loadCatalog();
+          return { success: true, message: "Signed in.", isSuperAdmin: data.user.is_super_admin === true };
         } catch {
           set({ authLoading: false, isAuthenticated: false, authError: "Could not reach the server." });
           return { success: false, message: "Could not reach the server." };

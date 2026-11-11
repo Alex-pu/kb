@@ -72,7 +72,7 @@ export async function POST(request: Request) {
   }
 
   const bundle = await getUserBundle(userRow.id);
-  if (!bundle || bundle.assignments.length === 0) {
+  if (!bundle || (!userRow.is_super_admin && bundle.assignments.length === 0)) {
     return NextResponse.json({ success: false, message: "This account has no active property assignment. Ask an administrator to assign you a role." }, { status: 403 });
   }
 
