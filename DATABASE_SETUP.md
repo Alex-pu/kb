@@ -48,6 +48,8 @@ The public landing-page demo form stores contact details in `marketing_leads` vi
 
 Migration `036_one_open_shift_per_outlet_area.sql` enforces one open shift per outlet and work area. Stations within the same outlet share a shift; separate outlets (such as a restaurant, bar, gym, or front desk) have separate shifts. If the migration reports existing duplicate open shifts, close those shifts before rerunning `npm run db:migrate`.
 
+Migration `037_purchases.sql` adds the separate **Purchases** workspace. Staff with stock-management permission can save editable drafts, mark them ordered, and receive all lines at once; receiving posts the quantities to Central Store and records stock movements in the same transaction. New items added there are stock-only supplies (name and unit), not POS products. Purchase reports support daily, weekly, and custom date ranges; **Export PDF** opens the browser print dialog, where users can print or choose **Save as PDF**. Apply migrations before using the workspace.
+
 ### DigiTax catalog registration
 
 Apply migrations before deploying code that adds or changes database-backed features. Migration `032_digitax_catalog_registration.sql` stores each catalog item's DigiTax profile, registration ID, and sync status.

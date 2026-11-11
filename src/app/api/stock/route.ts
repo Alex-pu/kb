@@ -298,67 +298,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, message: "A valid idempotency key is required." }, { status: 400 });
   }
 
-  if (action === "receive") {
-    const itemId = typeof body.item_id === "string" ? body.item_id : "";
-    const supplierName = typeof body.supplier_name === "string" ? body.supplier_name.trim() : "";
-    const quantity = body.quantity;
-    const unitCost = body.unit_cost;
-    if (!UUID_PATTERN.test(itemId) || !supplierName || supplierName.length > 255 ||
-        !validQuantity(quantity) || typeof unitCost !== "number" || !Number.isFinite(unitCost) ||
-        unitCost < 0 || unitCost > 1_000_000_000 || !Number.isInteger(unitCost * 100)) {
-      return NextResponse.json({ success: false, message: "Choose an item, supplier, positive quantity, and valid unit cost." }, { status: 400 });
-    }
-
-    try {
-      const result = await withUserContext(auth.userId, async (run): Promise<MutationOutcome> => {
-        const duplicate = await run<{ id: string }>(
-          `SELECT id FROM stock_movements WHERE property_id = $1 AND idempotency_key = $2`,
-          [scope.propertyId, idempotencyKey]
-        );
-        if (duplicate.rows[0]) return { outcome: "duplicate" };
-        const itemResult = await run<{ id: string; name: string; stock_tracked: boolean }>(
-          `SELECT id, name, stock_tracked FROM items
-           WHERE id = $1 AND property_id = $2 AND is_active = TRUE`,
-          [itemId, scope.propertyId]
-        );
-        const item = itemResult.rows[0];
-        if (!item) return { outcome: "invalid_item" };
-        if (!item.stock_tracked) return { outcome: "not_tracked" };
-
-        await run(
-          `INSERT INTO central_stock_levels (property_id, item_id, quantity)
-           VALUES ($1, $2, 0) ON CONFLICT (property_id, item_id) DO NOTHING`,
-          [scope.propertyId, itemId]
-        );
-        const stockResult = await run<{ quantity: string }>(
-          `SELECT quantity FROM central_stock_levels
-           WHERE property_id = $1 AND item_id = $2 FOR UPDATE`,
-          [scope.propertyId, itemId]
-        );
-        await run(
-          `UPDATE central_stock_levels SET quantity = quantity + $1, updated_at = NOW()
-           WHERE property_id = $2 AND item_id = $3`,
-          [quantity, scope.propertyId, itemId]
-        );
-        await run(
-          `INSERT INTO stock_movements
-             (property_id, item_id, movement_type, quantity, destination_warehouse,
-              unit_cost, supplier_name, idempotency_key, actor_user_id)
-           VALUES ($1, $2, 'purchase_receipt', $3, 'central', $4, $5, $6, $7)`,
-          [scope.propertyId, itemId, quantity, unitCost, supplierName, idempotencyKey, auth.userId]
-        );
-        return {
-          outcome: "ok",
-          message: `Received ${quantity} unit(s) of ${item.name} into Central Store. Central balance is now ${Number(stockResult.rows[0].quantity) + quantity}.`,
-        };
-      });
-      return mutationResponse(result);
-    } catch (error) {
-      console.error("Failed to receive stock into Central Store.", error);
-      return NextResponse.json({ success: false, message: "The purchase receipt was not recorded." }, { status: 500 });
-    }
-  }
-
   if (action === "transfer" || action === "wastage") {
     const itemId = typeof body.item_id === "string" ? body.item_id : "";
     const quantity = body.quantity;

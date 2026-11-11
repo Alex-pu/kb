@@ -15,6 +15,7 @@ import {
   Package, 
   Boxes, 
   ClipboardList,
+  ShoppingBasket,
   Calculator, 
   BarChart3, 
   History, 
@@ -50,6 +51,7 @@ const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
     items: [
       { title: "Dashboard", href: "/", icon: LayoutDashboard, permission: "dashboard:read" },
       { title: "Products & Menu", href: "/catalog", icon: Package, permission: "catalog:read" },
+      { title: "Purchases", href: "/purchases", icon: ShoppingBasket, permission: "inventory:read" },
       { title: "Stock & Supplies", href: "/stock", icon: Boxes, permission: "inventory:read" },
       { title: "Accounting & Ledger", href: "/accounting", icon: Calculator, permission: "accounting:read" },
       { title: "Casual Payroll", href: "/casual-payroll", icon: Wallet, permission: "payroll:manage" },

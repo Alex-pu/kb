@@ -189,7 +189,7 @@ async function cleanupFixture(pool: Pool, fixture: Fixture) {
 async function requestJson(
   baseUrl: string,
   route: string,
-  method: "GET" | "POST" | "PATCH",
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
   body?: Record<string, unknown>,
   cookie?: string
 ): Promise<ApiResult> {
@@ -402,30 +402,74 @@ async function runWorkflow(baseUrl: string, fixture: Fixture) {
   console.log("PASS created a tracked test item through the catalog API");
   console.log("PASS ignored manual SKU input and generated unique SKUs during concurrent creation");
 
-  const supplyCatalog = await requestJson(baseUrl, "/api/pos/catalog", "POST", {
+  const supplyCatalog = await requestJson(baseUrl, "/api/purchases", "POST", {
+    action: "create_item",
     outlet_id: fixture.outletId,
     name: `Non-sale supply ${randomUUID().slice(0, 8)}`,
-    item_type: "supply",
     unit: "each",
-    category: "Automated test",
-    price: 0,
-    stock_tracked: true,
-    prep_station: "kitchen",
   }, cookie);
-  assertSuccess(supplyCatalog, "Creating non-sale supply catalog item");
+  assertSuccess(supplyCatalog, "Quick-adding a stock-only supply from purchases");
   if (!isRecord(supplyCatalog.body.item) || typeof supplyCatalog.body.item.id !== "string") {
     throw new Error("Supply catalog response omitted the item id");
   }
   const supplyItemId = supplyCatalog.body.item.id;
 
-  const supplyReceipt = await postStockAction(baseUrl, cookie, fixture.outletId, "receive", {
-    item_id: supplyItemId,
-    supplier_name: "Automated supplies test",
-    quantity: 8,
-    unit_cost: 0.5,
-    idempotency_key: `stock-test:${randomUUID()}`,
-  });
-  assertSuccess(supplyReceipt, "Receiving non-sale supplies into Central Store");
+  const purchaseDate = new Date().toISOString().slice(0, 10);
+  const purchaseDraft = await requestJson(baseUrl, "/api/purchases", "POST", {
+    action: "save_draft",
+    outlet_id: fixture.outletId,
+    supplier_name: "Automated stock workflow test",
+    purchase_date: purchaseDate,
+    lines: [
+      { item_id: supplyItemId, quantity: 8, unit_cost: 0.5 },
+      { item_id: itemId, quantity: 10, unit_cost: 1.25 },
+    ],
+    idempotency_key: `purchase-test:${randomUUID()}`,
+  }, cookie);
+  assertSuccess(purchaseDraft, "Saving multi-line purchase draft");
+  const purchaseId = responseId(purchaseDraft, "Purchase draft");
+  let purchaseWorkspace = await readWorkspace(baseUrl, cookie, fixture.outletId);
+  assert.equal(Number(findItem(purchaseWorkspace, supplyItemId).central_quantity), 0);
+  assert.equal(Number(findItem(purchaseWorkspace, itemId).central_quantity), 0);
+  const purchaseOrder = await requestJson(baseUrl, "/api/purchases", "PATCH", {
+    outlet_id: fixture.outletId,
+    purchase_id: purchaseId,
+    action: "order",
+  }, cookie);
+  assertSuccess(purchaseOrder, "Marking purchase as ordered");
+  const purchaseReceipt = await requestJson(baseUrl, "/api/purchases", "PATCH", {
+    outlet_id: fixture.outletId,
+    purchase_id: purchaseId,
+    action: "receive",
+  }, cookie);
+  assertSuccess(purchaseReceipt, "Receiving all purchase lines into Central Store");
+  const duplicatePurchaseReceipt = await requestJson(baseUrl, "/api/purchases", "PATCH", {
+    outlet_id: fixture.outletId,
+    purchase_id: purchaseId,
+    action: "receive",
+  }, cookie);
+  assertSuccess(duplicatePurchaseReceipt, "Retrying a purchase receipt");
+  assert.match(String(duplicatePurchaseReceipt.body.message), /already received/i);
+  purchaseWorkspace = await readWorkspace(baseUrl, cookie, fixture.outletId);
+  assert.equal(Number(findItem(purchaseWorkspace, supplyItemId).central_quantity), 8);
+  assert.equal(Number(findItem(purchaseWorkspace, itemId).central_quantity), 10);
+
+  const purchaseReport = await requestJson(
+    baseUrl,
+    `/api/purchases?outlet_id=${encodeURIComponent(fixture.outletId)}&from=${purchaseDate}&to=${purchaseDate}&status=received`,
+    "GET",
+    undefined,
+    cookie
+  );
+  assertSuccess(purchaseReport, "Loading a date-filtered purchase report");
+  assert.ok(Array.isArray(purchaseReport.body.purchases));
+  assert.equal(purchaseReport.body.purchases.length, 1);
+  if (!isRecord(purchaseReport.body.purchases[0]) || !Array.isArray(purchaseReport.body.purchases[0].lines)) {
+    throw new Error("Purchase report omitted the purchase lines");
+  }
+  assert.equal(purchaseReport.body.purchases[0].lines.length, 2);
+  console.log("PASS saved a multi-line draft without stock changes, ordered and received all lines, and safely retried receipt");
+  console.log("PASS loaded a received purchase report filtered by date and status");
 
   const requesterLogin = await requestJson(baseUrl, "/api/auth/login", "POST", {
     identifier: fixture.requesterIdentifier,
@@ -436,6 +480,15 @@ async function runWorkflow(baseUrl: string, fixture: Fixture) {
   assert.ok(requesterSetCookie, "Requester login response did not set a session cookie");
   const requesterCookie = requesterSetCookie.split(";")[0];
   assert.ok(requesterCookie.startsWith("kb_session="), "Requester login response used an unexpected session cookie");
+
+  const forbiddenPurchaseRead = await requestJson(
+    baseUrl,
+    `/api/purchases?outlet_id=${encodeURIComponent(fixture.outletId)}&from=${purchaseDate}&to=${purchaseDate}`,
+    "GET",
+    undefined,
+    requesterCookie
+  );
+  assert.equal(forbiddenPurchaseRead.response.status, 403, "A stock requester without inventory-read permission viewed purchases");
 
   const requesterWorkspace = await requestJson(
     baseUrl,
@@ -554,25 +607,6 @@ async function runWorkflow(baseUrl: string, fixture: Fixture) {
   });
   assertSuccess(supplyWastage, "Recording Supplies balance wastage");
   console.log("PASS request-only access, supply restrictions, partial issue, cancellation, and Supplies balance movements");
-
-  const receiptKey = `stock-test:${randomUUID()}`;
-  const receipt = await postStockAction(baseUrl, cookie, fixture.outletId, "receive", {
-    item_id: itemId,
-    supplier_name: "Automated stock workflow test",
-    quantity: 10,
-    unit_cost: 1.25,
-    idempotency_key: receiptKey,
-  });
-  assertSuccess(receipt, "Receiving purchase into Central Store");
-  const duplicateReceipt = await postStockAction(baseUrl, cookie, fixture.outletId, "receive", {
-    item_id: itemId,
-    supplier_name: "Automated stock workflow test",
-    quantity: 10,
-    unit_cost: 1.25,
-    idempotency_key: receiptKey,
-  });
-  assert.equal(duplicateReceipt.response.status, 409, "Duplicate purchase receipt was not rejected");
-  console.log("PASS received stock into Central Store and rejected a duplicate idempotency key");
 
   const directTransfer = await postStockAction(baseUrl, cookie, fixture.outletId, "transfer", {
     item_id: itemId,

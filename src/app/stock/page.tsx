@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { useTenantStore } from "@/lib/store/tenant-store";
-import { AlertTriangle, ArrowLeftRight, PackagePlus, Plus, Trash2, X } from "lucide-react";
+import { AlertTriangle, ArrowLeftRight, Plus, Trash2, X } from "lucide-react";
 import type { StockItem, StockRequisition } from "@/lib/types/database";
 
 type Warehouse = "kitchen" | "bar" | "supplies";
@@ -42,8 +42,6 @@ export default function StockPage() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [purchaseSearch, setPurchaseSearch] = useState("");
-  const [purchaseForm, setPurchaseForm] = useState({ item_id: "", supplier_name: "", quantity: "", unit_cost: "" });
   const [transferForm, setTransferForm] = useState({ item_id: "", warehouse: "kitchen" as Warehouse, quantity: "" });
   const [wastageForm, setWastageForm] = useState({ item_id: "", warehouse: "kitchen" as Warehouse, quantity: "", reason: "" });
   const [requestForm, setRequestForm] = useState({
@@ -56,13 +54,6 @@ export default function StockPage() {
 
   const trackedItems = useMemo(() => stockItems.filter((item) => item.stock_tracked), [stockItems]);
   const outletItems = useMemo(() => trackedItems.filter((item) => item.available_at_outlet), [trackedItems]);
-  const purchaseItems = useMemo(() => {
-    const search = purchaseSearch.trim().toLocaleLowerCase();
-    if (!search) return trackedItems;
-    return trackedItems.filter((item) =>
-      `${item.name} ${item.sku}`.toLocaleLowerCase().includes(search)
-    );
-  }, [purchaseSearch, trackedItems]);
   const itemsForWarehouse = (warehouse: Warehouse, items = trackedItems) =>
     items.filter((item) => (item.item_type === "supply") === (warehouse === "supplies"));
   const outletId = activeOutlet?.id || "";
@@ -118,21 +109,6 @@ export default function StockPage() {
       return false;
     } finally {
       setBusy(false);
-    }
-  }
-
-  async function submitPurchase(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const success = await postAction({
-      action: "receive",
-      item_id: purchaseForm.item_id,
-      supplier_name: purchaseForm.supplier_name,
-      quantity: Number(purchaseForm.quantity),
-      unit_cost: Number(purchaseForm.unit_cost),
-    });
-    if (success) {
-      setPurchaseForm({ item_id: "", supplier_name: "", quantity: "", unit_cost: "" });
-      setPurchaseSearch("");
     }
   }
 
@@ -251,32 +227,7 @@ export default function StockPage() {
         </section>
 
         {canManageStock && (
-          <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <form onSubmit={submitPurchase} className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded p-4 space-y-3">
-              <h3 className="text-xs font-semibold flex items-center gap-1.5"><PackagePlus className="w-3.5 h-3.5" /> Receive purchase</h3>
-              <input
-                type="search"
-                aria-label="Search purchase items"
-                value={purchaseSearch}
-                onChange={(event) => {
-                  setPurchaseSearch(event.target.value);
-                  setPurchaseForm((current) => ({ ...current, item_id: "" }));
-                }}
-                placeholder="Search product or menu item by name or SKU"
-                className="w-full p-2 text-xs border rounded bg-neutral-50 dark:bg-neutral-800"
-              />
-              <select required value={purchaseForm.item_id} onChange={(event) => setPurchaseForm({ ...purchaseForm, item_id: event.target.value })} className="w-full p-2 text-xs border rounded bg-neutral-50 dark:bg-neutral-800">
-                <option value="">{purchaseItems.length ? "Select stock-tracked catalog item" : "No matching stock-tracked items"}</option>
-                {purchaseItems.map((item) => <option key={item.id} value={item.id}>{item.name} • {item.sku} ({item.unit})</option>)}
-              </select>
-              <input required maxLength={255} value={purchaseForm.supplier_name} onChange={(event) => setPurchaseForm({ ...purchaseForm, supplier_name: event.target.value })} placeholder="Supplier name" className="w-full p-2 text-xs border rounded bg-neutral-50 dark:bg-neutral-800" />
-              <div className="grid grid-cols-2 gap-2">
-                <input required type="number" min="0.001" step="0.001" value={purchaseForm.quantity} onChange={(event) => setPurchaseForm({ ...purchaseForm, quantity: event.target.value })} placeholder="Quantity" className="w-full p-2 text-xs border rounded bg-neutral-50 dark:bg-neutral-800" />
-                <input required type="number" min="0" step="0.01" value={purchaseForm.unit_cost} onChange={(event) => setPurchaseForm({ ...purchaseForm, unit_cost: event.target.value })} placeholder="Unit cost (KES)" className="w-full p-2 text-xs border rounded bg-neutral-50 dark:bg-neutral-800" />
-              </div>
-              <button disabled={busy || trackedItems.length === 0} className="w-full py-2 bg-black text-white dark:bg-white dark:text-black rounded text-xs font-semibold disabled:opacity-50">Receive into Central Store</button>
-            </form>
-
+          <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <form onSubmit={submitTransfer} className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded p-4 space-y-3">
               <h3 className="text-xs font-semibold flex items-center gap-1.5"><ArrowLeftRight className="w-3.5 h-3.5" /> Transfer to outlet</h3>
               <select required value={transferForm.item_id} onChange={(event) => setTransferForm({ ...transferForm, item_id: event.target.value })} className="w-full p-2 text-xs border rounded bg-neutral-50 dark:bg-neutral-800">
