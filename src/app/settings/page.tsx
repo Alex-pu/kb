@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
+import { PropertyEmailSettings } from "@/components/settings/PropertyEmailSettings";
 import { useTenantStore } from "@/lib/store/tenant-store";
 import { SlidersHorizontal, Building2, Store, TerminalSquare, ShieldAlert, Check, Smartphone, ReceiptText, BedDouble, Plus } from "lucide-react";
 
@@ -314,6 +315,8 @@ export default function PropertySettingsPage() {
             <button type="submit" disabled={!activeOutlet || savingEtims} className="rounded bg-black px-4 py-2 text-xs font-semibold text-white disabled:opacity-40 dark:bg-white dark:text-black">{savingEtims ? "Saving…" : "Save DigiTax settings"}</button>
           </form>
         )}
+
+        {canManageSettings && activeProperty?.id && <PropertyEmailSettings propertyId={activeProperty.id} />}
 
         <div className="space-y-6">
           <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded p-5 space-y-4">

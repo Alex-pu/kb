@@ -36,6 +36,8 @@ ORDER BY p.name, o.name;"
 
 Configure Daraja for each property outlet in **Property Settings → M-Pesa / Daraja Configuration**. Consumer credentials, passkey, shortcode, environment, and callback URL are stored per outlet; credentials and the generated callback secret are encrypted at rest. The server must have `DARAJA_CONFIG_ENCRYPTION_KEY` set to a 32-byte hexadecimal key to save or read encrypted credentials. This key protects the database credentials and is not a shared Daraja account configuration.
 
+Property admins can configure outgoing mail in **Property Settings → Report email**. SMTP credentials are stored per property; the password is encrypted at rest with `DARAJA_CONFIG_ENCRYPTION_KEY` and is never returned to the browser. Keep that key unchanged and backed up, or encrypted mail credentials cannot be read. Add contacts with a group name, send a test email, then email PDF versions of exportable reports to selected contacts or groups. Port 465 uses SSL/TLS and port 587 uses STARTTLS. IMAP and POP3 are not used for sending.
+
 ## 2. Apply migrations
 
 SQL schema files live in `db/migrations/*.sql`, applied in filename order and tracked in a `schema_migrations` table so re-runs are safe:
@@ -49,6 +51,8 @@ The public landing-page demo form stores contact details in `marketing_leads` vi
 Migration `036_one_open_shift_per_outlet_area.sql` enforces one open shift per outlet and work area. Stations within the same outlet share a shift; separate outlets (such as a restaurant, bar, gym, or front desk) have separate shifts. If the migration reports existing duplicate open shifts, close those shifts before rerunning `npm run db:migrate`.
 
 Migration `037_purchases.sql` adds the separate **Purchases** workspace. Staff with stock-management permission can save editable drafts, mark them ordered, and receive all lines at once; receiving posts the quantities to Central Store and records stock movements in the same transaction. New items added there are stock-only supplies (name and unit), not POS products. Purchase reports support daily, weekly, and custom date ranges; **Export PDF** opens the browser print dialog, where users can print or choose **Save as PDF**. Apply migrations before using the workspace.
+
+Migration `039_property_email.sql` adds each property's SMTP configuration and grouped email contacts. Property admins manage mailbox settings and contacts in **Property Settings**; report senders select saved contacts/groups from **Reports & Analytics** or **Purchases**. The report email is a generated PDF attachment. Apply the migration before using email settings.
 
 ### DigiTax catalog registration
 

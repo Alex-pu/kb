@@ -102,6 +102,34 @@ CREATE TABLE IF NOT EXISTS digitax_configs (
     CONSTRAINT uq_digitax_config_property_outlet UNIQUE (property_id, outlet_id)
 );
 
+CREATE TABLE IF NOT EXISTS property_email_configs (
+    property_id UUID PRIMARY KEY REFERENCES properties(id) ON DELETE CASCADE,
+    smtp_host VARCHAR(253) NOT NULL,
+    smtp_port INTEGER NOT NULL CHECK (smtp_port IN (465, 587)),
+    smtp_username VARCHAR(320) NOT NULL,
+    from_address VARCHAR(320) NOT NULL,
+    password_encrypted TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS property_email_contacts (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    property_id UUID NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+    full_name VARCHAR(160) NOT NULL CHECK (LENGTH(BTRIM(full_name)) > 0),
+    email VARCHAR(320) NOT NULL CHECK (LENGTH(BTRIM(email)) > 0),
+    group_name VARCHAR(120) NOT NULL DEFAULT 'General' CHECK (LENGTH(BTRIM(group_name)) > 0),
+    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS property_email_contacts_property_email_unique
+    ON property_email_contacts (property_id, LOWER(email));
+
+CREATE INDEX IF NOT EXISTS property_email_contacts_property_group_idx
+    ON property_email_contacts (property_id, LOWER(group_name), LOWER(full_name));
+
 CREATE TABLE IF NOT EXISTS etims_submissions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     property_id UUID NOT NULL REFERENCES properties(id) ON DELETE CASCADE,

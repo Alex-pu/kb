@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { DashboardShell } from "@/components/layout/DashboardShell";
+import { EmailReportButton } from "@/components/reports/EmailReportButton";
 import { useTenantStore } from "@/lib/store/tenant-store";
 import { Download, PackagePlus, Plus, Save, Send, Truck, X } from "lucide-react";
 
@@ -418,6 +419,30 @@ export default function PurchasesPage() {
   }
 
   const reportTotal = purchases.reduce((total, purchase) => total + purchase.total, 0);
+  const purchaseEmailRows = useMemo(() => {
+    if (purchases.length === 0) return [];
+    const rows: Array<Array<string | number>> = [[
+      "Purchase date", "Supplier", "Status", "Product", "Quantity", "Unit price", "Line total", "Purchase total",
+    ]];
+    for (const purchase of purchases) {
+      if (purchase.lines.length === 0) {
+        rows.push([purchase.purchase_date, purchase.supplier_name, purchase.status, "", "", "", "", purchase.total]);
+        continue;
+      }
+      purchase.lines.forEach((line, index) => rows.push([
+        purchase.purchase_date,
+        purchase.supplier_name,
+        purchase.status,
+        line.item_name || "Product",
+        line.quantity,
+        line.unit_cost,
+        line.line_total ?? line.quantity * line.unit_cost,
+        index === 0 ? purchase.total : "",
+      ]));
+    }
+    rows.push(["", "", "", "", "", "", "Report total", reportTotal]);
+    return rows;
+  }, [purchases, reportTotal]);
 
   return (
     <DashboardShell>
@@ -428,6 +453,15 @@ export default function PurchasesPage() {
             <p className="mt-0.5 text-xs text-neutral-500">Save drafts, mark orders, receive full purchases, and report on purchase costs.</p>
           </div>
           <div className="flex gap-2">
+            {activeProperty?.id && <EmailReportButton
+              propertyId={activeProperty.id}
+              propertyName={activeProperty.name || "Property"}
+              reportType="purchases"
+              reportTitle="Purchases"
+              period={`${fromDate} to ${toDate}`}
+              rows={purchaseEmailRows}
+              disabled={loading}
+            />}
             <button type="button" onClick={exportPdf} disabled={loading} className="inline-flex items-center gap-1.5 rounded border border-neutral-300 px-3 py-2 text-xs disabled:opacity-50 dark:border-neutral-700">
               <Download className="h-3.5 w-3.5" /> Export PDF
             </button>

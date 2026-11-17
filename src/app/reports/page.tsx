@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { DashboardShell } from "@/components/layout/DashboardShell";
+import { EmailReportButton } from "@/components/reports/EmailReportButton";
 import { useTenantStore } from "@/lib/store/tenant-store";
 import { BarChart3, BedDouble, ChefHat, ClipboardList, Download, Package, Printer, RefreshCw, Wallet } from "lucide-react";
 
@@ -215,10 +216,9 @@ export default function ReportsPage() {
   const occupied = rooms.filter((room) => room.status === "occupied").length;
   const visibleReports = REPORTS.filter((item) => !item.requiresAccounting || canViewFinancials);
 
-  const exportCurrentReport = () => {
-    if (!data) return;
+  const currentReportRows = useMemo(() => {
+    if (!data) return [];
     const rows: Array<Array<string | number>> = [];
-    const filename = `kore-bench-${report}-${fromDate}-to-${toDate}.csv`;
     if (report === "sales") {
       rows.push([salesInterval === "day" ? "Date" : salesInterval === "week" ? "Week starting" : "Month", "POS sales", "Dining sales", "Transactions", "Average sale", "Total sales"]);
       dailyTotals.forEach((row) => rows.push([displayBucket(row.date, salesInterval), row.pos, row.dining, row.transactions, row.transactions ? row.sales / row.transactions : 0, row.sales]));
@@ -237,8 +237,32 @@ export default function ReportsPage() {
     } else if (report === "financials" && data.financial) {
       rows.push(["Code", "Account", "Type", "Period debit", "Period credit", "Balance debit", "Balance credit"]);
       data.financial.forEach((row) => rows.push([row.code, row.name, row.type, row.periodDebit, row.periodCredit, row.balanceDebit, row.balanceCredit]));
+    } else if (report === "occupancy") {
+      const activeBookings = bookings.filter((booking) => booking.status !== "cancelled" && booking.status !== "checked_out").length;
+      rows.push(["Occupancy metric", "Value"]);
+      rows.push(["Occupied rooms", occupied], ["Total rooms", rooms.length]);
+      rows.push(["Occupancy rate", `${rooms.length ? Math.round((occupied / rooms.length) * 100) : 0}%`]);
+      rows.push(["Active bookings", activeBookings]);
+    } else if (report === "kots") {
+      rows.push(["Table", "Station", "Status"]);
+      activeKots.forEach((kot) => rows.push([kot.table_name, kot.station, kot.status]));
+      if (activeKots.length === 0) rows.push(["No active tickets", "", ""]);
+    } else if (report === "stock") {
+      rows.push(["Stock risk metric", "Value"]);
+      rows.push(["Tracked items", stockItems.length], ["Low-stock items", lowStock.length], ["Active outlet", activeOutlet?.name || "All"]);
+      lowStock.forEach((item) => rows.push([
+        item.name,
+        stockLevels[item.id]?.[activeOutlet?.id || ""] || 0,
+        `Reorder level ${item.reorder_level}`,
+      ]));
     }
-    if (rows.length > 1) downloadCsv(filename, rows);
+    return rows;
+  }, [activeKots, activeOutlet?.name, bookings, dailyTotals, data, lowStock, occupied, report, rooms.length, salesInterval, stockItems.length, stockLevels]);
+
+  const exportCurrentReport = () => {
+    if (currentReportRows.length < 2) return;
+    const filename = `kore-bench-${report}-${fromDate}-to-${toDate}.csv`;
+    downloadCsv(filename, currentReportRows);
   };
 
   const changeProperty = (nextPropertyId: string) => {
@@ -255,9 +279,20 @@ export default function ReportsPage() {
             <h1 className="text-xl font-bold tracking-tight">Reports & Analytics</h1>
             <p className="mt-0.5 text-xs text-neutral-500">Sales performance, cash reconciliation and financial reporting. Date filters apply to transaction and financial reports.</p>
           </div>
-          <button type="button" onClick={exportCurrentReport} disabled={!data || loading || ["occupancy", "kots", "stock"].includes(report)} className="inline-flex items-center gap-1.5 rounded border border-neutral-300 px-3 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-40 dark:border-neutral-700">
-            <Download className="h-3.5 w-3.5" /> Export CSV
-          </button>
+          <div className="flex gap-2">
+            <button type="button" onClick={exportCurrentReport} disabled={!data || loading || currentReportRows.length < 2} className="inline-flex items-center gap-1.5 rounded border border-neutral-300 px-3 py-2 text-xs disabled:cursor-not-allowed disabled:opacity-40 dark:border-neutral-700">
+              <Download className="h-3.5 w-3.5" /> Export CSV
+            </button>
+            {propertyId && <EmailReportButton
+              propertyId={propertyId}
+              propertyName={availableProperties.find((property) => property.id === propertyId)?.name || activeProperty?.name || "Property"}
+              reportType={report}
+              reportTitle={REPORTS.find((item) => item.key === report)?.label || "Report"}
+              period={`${fromDate} to ${toDate}`}
+              rows={currentReportRows}
+              disabled={!data || loading}
+            />}
+          </div>
         </div>
 
         <div className="flex flex-wrap items-end gap-3 rounded border border-neutral-200 bg-white p-3 dark:border-neutral-800 dark:bg-neutral-900">
