@@ -95,7 +95,12 @@ export async function POST(request: Request) {
 
   const response = NextResponse.json({ success: true, ...bundle });
   const requestUrl = new URL(request.url);
-  const isLanHttp = requestUrl.protocol === "http:" && requestUrl.hostname === "next.local";
+  const host = request.headers.get("x-forwarded-host")?.split(",")[0].trim()
+    || request.headers.get("host")
+    || requestUrl.host;
+  const protocol = request.headers.get("x-forwarded-proto")?.split(",")[0].trim()
+    || requestUrl.protocol.slice(0, -1);
+  const isLanHttp = protocol === "http" && /^next\.local(?::\d+)?$/i.test(host);
   response.cookies.set(SESSION_COOKIE_NAME, session.cookieValue, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production" && !isLanHttp,
