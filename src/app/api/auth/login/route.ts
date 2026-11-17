@@ -94,9 +94,11 @@ export async function POST(request: Request) {
   }
 
   const response = NextResponse.json({ success: true, ...bundle });
+  const requestUrl = new URL(request.url);
+  const isLanHttp = requestUrl.protocol === "http:" && requestUrl.hostname === "next.local";
   response.cookies.set(SESSION_COOKIE_NAME, session.cookieValue, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: process.env.NODE_ENV === "production" && !isLanHttp,
     sameSite: "lax",
     path: "/",
     expires: session.expiresAt,
