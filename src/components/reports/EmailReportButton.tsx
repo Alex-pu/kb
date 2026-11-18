@@ -30,6 +30,7 @@ interface EmailReportButtonProps {
   reportTitle: string;
   period: string;
   rows: Array<Array<string | number>>;
+  createPdf?: () => jsPDF;
   disabled?: boolean;
 }
 
@@ -40,6 +41,7 @@ export function EmailReportButton({
   reportTitle,
   period,
   rows,
+  createPdf,
   disabled = false,
 }: EmailReportButtonProps) {
   const [open, setOpen] = useState(false);
@@ -100,25 +102,28 @@ export function EmailReportButton({
     setSending(true);
     setMessage(null);
     try {
-      const pdf = new jsPDF({
-        orientation: rows[0].length > 5 ? "landscape" : "portrait",
-        unit: "pt",
-      });
-      pdf.setProperties({ title: `${reportTitle} - ${period}`, author: propertyName });
-      pdf.setFontSize(15);
-      pdf.text(propertyName, 36, 36);
-      pdf.setFontSize(10);
-      pdf.text(reportTitle, 36, 54);
-      pdf.text(period, 36, 69);
-      autoTable(pdf, {
-        startY: 82,
-        head: [rows[0].map(String)],
-        body: rows.slice(1).map((row) => row.map(String)),
-        margin: { left: 36, right: 36, bottom: 36 },
-        styles: { fontSize: 8, cellPadding: 4, overflow: "linebreak" },
-        headStyles: { fillColor: [35, 35, 35] },
-        theme: "grid",
-      });
+      const pdf = createPdf?.() ?? (() => {
+        const report = new jsPDF({
+          orientation: rows[0].length > 5 ? "landscape" : "portrait",
+          unit: "pt",
+        });
+        report.setProperties({ title: `${reportTitle} - ${period}`, author: propertyName });
+        report.setFontSize(15);
+        report.text(propertyName, 36, 36);
+        report.setFontSize(10);
+        report.text(reportTitle, 36, 54);
+        report.text(period, 36, 69);
+        autoTable(report, {
+          startY: 82,
+          head: [rows[0].map(String)],
+          body: rows.slice(1).map((row) => row.map(String)),
+          margin: { left: 36, right: 36, bottom: 36 },
+          styles: { fontSize: 8, cellPadding: 4, overflow: "linebreak" },
+          headStyles: { fillColor: [35, 35, 35] },
+          theme: "grid",
+        });
+        return report;
+      })();
       const dataUri = pdf.output("datauristring");
       const separator = dataUri.indexOf(",");
       if (separator < 0) throw new Error("The report PDF could not be prepared.");

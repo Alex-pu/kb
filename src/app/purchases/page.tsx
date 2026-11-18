@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { EmailReportButton } from "@/components/reports/EmailReportButton";
 import { useTenantStore } from "@/lib/store/tenant-store";
@@ -65,14 +67,111 @@ function money(value: number) {
   return `KSh ${value.toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function escapeHtml(value: string) {
-  return value.replace(/[&<>"']/g, (character) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    "\"": "&quot;",
-    "'": "&#39;",
-  })[character] ?? character);
+function createPurchaseReportPdf({
+  propertyName,
+  fromDate,
+  toDate,
+  statusFilter,
+  exportedBy,
+  exportedAt,
+  purchases,
+}: {
+  propertyName: string;
+  fromDate: string;
+  toDate: string;
+  statusFilter: string;
+  exportedBy: string;
+  exportedAt: string;
+  purchases: Purchase[];
+}) {
+  type AutoTablePdf = jsPDF & { lastAutoTable?: { finalY?: number } };
+  const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" }) as AutoTablePdf;
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const margin = 12;
+  const contentWidth = pageWidth - margin * 2;
+  const reportTitle = `Purchase report ${fromDate} to ${toDate}`;
+  pdf.setProperties({ title: reportTitle, author: exportedBy });
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(16);
+  pdf.text(propertyName, margin, 16);
+  pdf.setFontSize(12);
+  pdf.text("Purchase report", margin, 23);
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(8);
+  pdf.setTextColor(85, 85, 85);
+  pdf.text(`${fromDate} to ${toDate} · Status: ${statusFilter}`, margin, 29);
+  pdf.text(`Report exported by ${exportedBy} · ${exportedAt}`, margin, 34);
+  pdf.setTextColor(17, 17, 17);
+
+  let cursorY = 44;
+  for (const purchase of purchases) {
+    const activity = [
+      `Saved by ${purchase.created_by_name}`,
+      purchase.ordered_by_name ? `Ordered by ${purchase.ordered_by_name}` : "",
+      purchase.received_by_name ? `Received by ${purchase.received_by_name}` : "",
+    ].filter(Boolean).join(" · ");
+    const activityLines = pdf.splitTextToSize(activity, contentWidth);
+    const sectionHeight = 12 + activityLines.length * 3.5;
+    if (cursorY + sectionHeight > pageHeight - margin - 24) {
+      pdf.addPage();
+      cursorY = margin;
+    }
+
+    pdf.setDrawColor(187, 187, 187);
+    pdf.line(margin, cursorY, pageWidth - margin, cursorY);
+    cursorY += 5;
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(10);
+    pdf.text(purchase.supplier_name, margin, cursorY);
+    pdf.text(money(purchase.total), pageWidth - margin, cursorY, { align: "right" });
+    cursorY += 4;
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(8);
+    pdf.setTextColor(85, 85, 85);
+    pdf.text(`${purchase.purchase_date} · ${purchase.status.toUpperCase()}`, margin, cursorY);
+    cursorY += 3.5;
+    pdf.text(activityLines, margin, cursorY);
+    cursorY += activityLines.length * 3.5 + 2;
+    pdf.setTextColor(17, 17, 17);
+
+    autoTable(pdf, {
+      startY: cursorY,
+      head: [["Product", "Pieces", "Unit price", "Total"]],
+      body: purchase.lines.map((line) => [
+        line.item_name || "Product",
+        line.quantity.toLocaleString(),
+        money(line.unit_cost),
+        money(line.line_total ?? line.quantity * line.unit_cost),
+      ]),
+      margin: { left: margin, right: margin, bottom: margin },
+      styles: { fontSize: 8, cellPadding: 1.5, overflow: "linebreak" },
+      headStyles: { fillColor: [35, 35, 35] },
+      columnStyles: { 1: { halign: "right" }, 2: { halign: "right" }, 3: { halign: "right" } },
+      theme: "grid",
+    });
+    cursorY = (pdf.lastAutoTable?.finalY ?? cursorY) + 4;
+    if (cursorY + 8 > pageHeight - margin) {
+      pdf.addPage();
+      cursorY = margin;
+    }
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(8);
+    pdf.text(`Purchase total: ${money(purchase.total)}`, pageWidth - margin, cursorY, { align: "right" });
+    cursorY += 9;
+    pdf.setFont("helvetica", "normal");
+  }
+
+  if (cursorY + 10 > pageHeight - margin) {
+    pdf.addPage();
+    cursorY = margin;
+  }
+  pdf.setDrawColor(17, 17, 17);
+  pdf.line(margin, cursorY, pageWidth - margin, cursorY);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(10);
+  pdf.text(`Report total: ${money(purchases.reduce((total, purchase) => total + purchase.total, 0))}`, pageWidth - margin, cursorY + 6, { align: "right" });
+  return pdf;
 }
 
 function statusClass(status: Purchase["status"]) {
@@ -366,45 +465,20 @@ export default function PurchasesPage() {
       setError("Allow pop-ups to open the purchase report for printing or saving as PDF.");
       return;
     }
-    const rows = purchases.map((purchase) => `
-      <article class="purchase">
-        <div class="purchase-heading">
-          <div><strong>${escapeHtml(purchase.supplier_name)}</strong><div>${escapeHtml(purchase.purchase_date)} · ${purchase.status.toUpperCase()}</div>
-          <div>Saved by ${escapeHtml(purchase.created_by_name)}${purchase.ordered_by_name ? ` · Ordered by ${escapeHtml(purchase.ordered_by_name)}` : ""}${purchase.received_by_name ? ` · Received by ${escapeHtml(purchase.received_by_name)}` : ""}</div></div>
-          <strong>${money(purchase.total)}</strong>
-        </div>
-        <table><thead><tr><th>Product</th><th>Pieces</th><th>Unit price</th><th>Total</th></tr></thead>
-          <tbody>${purchase.lines.map((line) => `
-            <tr><td>${escapeHtml(line.item_name || "Product")}</td><td>${line.quantity.toLocaleString()}</td>
-                <td>${money(line.unit_cost)}</td><td>${money(line.line_total ?? line.quantity * line.unit_cost)}</td></tr>
-          `).join("")}</tbody>
-        </table>
-        <div class="purchase-total">Purchase total: ${money(purchase.total)}</div>
-      </article>
-    `).join("");
     const propertyName = activeProperty?.name || "Property";
     const exportedBy = currentUser?.full_name || currentUser?.email || "Unknown user";
     const exportedAt = new Date().toLocaleString("en-KE");
-    printWindow.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(propertyName)} — Purchase report ${escapeHtml(fromDate)} to ${escapeHtml(toDate)}</title>
-      <style>
-        body{font:12px Arial,sans-serif;color:#111;margin:24px}
-        h1{font-size:22px;margin:0 0 3px}h2{font-size:16px;margin:0 0 4px}p{margin:0 0 5px;color:#555}
-        .report-meta{margin-bottom:18px;color:#555;font-size:11px}
-        .purchase{page-break-inside:avoid;border-top:1px solid #bbb;padding:12px 0}
-        .purchase-heading{display:flex;justify-content:space-between;margin-bottom:8px}
-        .purchase-heading div{margin-top:4px;color:#555;font-size:11px}
-        table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:6px;border-bottom:1px solid #ddd}
-        th:last-child,td:last-child{text-align:right}td:nth-child(2),td:nth-child(3){text-align:right}
-        .purchase-total{text-align:right;font-weight:bold;margin-top:8px}
-        .grand-total{border-top:2px solid #111;padding-top:10px;text-align:right;font-size:14px;font-weight:bold}
-        @media print{body{margin:12mm}}
-      </style></head><body><h1>${escapeHtml(propertyName)}</h1><h2>Purchase report</h2>
-      <p>${escapeHtml(fromDate)} to ${escapeHtml(toDate)} · Status: ${escapeHtml(statusFilter)}</p>
-      <div class="report-meta">Report exported by ${escapeHtml(exportedBy)} · ${escapeHtml(exportedAt)}</div>
-      ${rows || "<p>No purchases in this date range and status.</p>"}
-      <div class="grand-total">Report total: ${money(purchases.reduce((total, purchase) => total + purchase.total, 0))}</div>
-      <script>window.onload=()=>window.print()</script></body></html>`);
-    printWindow.document.close();
+    const pdf = createPurchaseReportPdf({
+      propertyName,
+      fromDate,
+      toDate,
+      statusFilter,
+      exportedBy,
+      exportedAt,
+      purchases,
+    });
+    pdf.autoPrint();
+    printWindow.location.href = pdf.output("bloburl").toString();
     setError(null);
   }
 
@@ -460,6 +534,15 @@ export default function PurchasesPage() {
               reportTitle="Purchases"
               period={`${fromDate} to ${toDate}`}
               rows={purchaseEmailRows}
+              createPdf={() => createPurchaseReportPdf({
+                propertyName: activeProperty.name || "Property",
+                fromDate,
+                toDate,
+                statusFilter,
+                exportedBy: currentUser?.full_name || currentUser?.email || "Unknown user",
+                exportedAt: new Date().toLocaleString("en-KE"),
+                purchases,
+              })}
               disabled={loading}
             />}
             <button type="button" onClick={exportPdf} disabled={loading} className="inline-flex items-center gap-1.5 rounded border border-neutral-300 px-3 py-2 text-xs disabled:opacity-50 dark:border-neutral-700">
