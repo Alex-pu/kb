@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { databaseReady, query } from "@/lib/db/postgres";
+import { loadPlatformSmtpConfig } from "@/lib/email/platform-config";
+import { sendSmtpMail } from "@/lib/email/smtp";
 
 export const runtime = "nodejs";
 
@@ -62,6 +64,31 @@ export async function POST(request: Request) {
        VALUES ($1, $2, $3, $4, $5, $6::timestamp, $7)`,
       [name, phone, organization, email, plan, preferredDemoAt, message || null],
     );
+    try {
+      const platformEmail = await loadPlatformSmtpConfig();
+      if (platformEmail) {
+        await sendSmtpMail(platformEmail, {
+          from: { name: "Kore Bench Demo Requests", address: platformEmail.fromAddress },
+          to: platformEmail.notificationRecipient,
+          replyTo: email,
+          subject: `New demo request: ${organization}`,
+          text: [
+            "A new Kore Bench demo request was submitted.",
+            "",
+            `Name: ${name}`,
+            `Organization: ${organization}`,
+            `Email: ${email}`,
+            `Phone: ${phone}`,
+            `Package: ${plan}`,
+            `Preferred demo: ${preferredDemoAt}`,
+            `Message: ${message || "None"}`,
+          ].join("\n"),
+        });
+      }
+    } catch (error) {
+      const code = typeof error === "object" && error !== null && "code" in error ? String(error.code) : "unknown";
+      console.error("Lead notification email could not be sent.", { code });
+    }
     return NextResponse.json({ success: true }, { status: 201 });
   } catch (error) {
     console.error("Could not save a marketing lead.", error);
