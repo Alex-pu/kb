@@ -36,6 +36,15 @@ interface Lead {
 const fieldClassName = "w-full rounded border border-neutral-300 bg-white px-3 py-2 text-sm outline-none focus:border-neutral-900 dark:border-neutral-700 dark:bg-neutral-900 dark:focus:border-white";
 const labelClassName = "mb-1 block text-xs font-medium text-neutral-600 dark:text-neutral-300";
 
+async function readJsonResponse<T extends object>(response: Response): Promise<T & { success?: boolean; message?: string }> {
+  const text = await response.text();
+  try {
+    return JSON.parse(text) as T & { success?: boolean; message?: string };
+  } catch {
+    throw new Error(`The server returned an unexpected ${response.status} response. Refresh and try again; if it continues, redeploy the latest code.`);
+  }
+}
+
 export default function SuperAdminPage() {
   const router = useRouter();
   const { currentUser, logout } = useTenantStore();
@@ -88,7 +97,7 @@ export default function SuperAdminPage() {
     setLeadsError("");
     try {
       const response = await fetch("/api/admin/leads", { credentials: "include" });
-      const result = await response.json();
+      const result = await readJsonResponse<{ leads?: Lead[] }>(response);
       if (!response.ok || !result.success) throw new Error(result.message || "Leads could not be loaded.");
       setLeads(result.leads || []);
     } catch (loadError) {
@@ -103,7 +112,7 @@ export default function SuperAdminPage() {
     void (async () => {
       try {
         const response = await fetch("/api/admin/email", { credentials: "include" });
-        const result = await response.json();
+        const result = await readJsonResponse<{ config?: PlatformEmailConfig }>(response);
         if (response.ok && result.success && result.config) {
           setEmailConfig(result.config);
           setTestRecipient(result.config.notification_recipient || "kamaua175@gmail.com");
@@ -125,7 +134,7 @@ export default function SuperAdminPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...emailConfig, password: emailPassword }),
       });
-      const result = await response.json();
+      const result = await readJsonResponse<{ success: boolean; message?: string }>(response);
       if (!response.ok || !result.success) throw new Error(result.message || "Email settings could not be saved.");
       setEmailPassword("");
       setEmailConfig((current) => ({ ...current, has_password: true }));
@@ -147,7 +156,7 @@ export default function SuperAdminPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ recipient: testRecipient }),
       });
-      const result = await response.json();
+      const result = await readJsonResponse<{ success: boolean; message?: string }>(response);
       if (!response.ok || !result.success) throw new Error(result.message || "Test email could not be sent.");
       setEmailMessage(result.message || "Test email sent.");
     } catch (testError) {
@@ -169,7 +178,7 @@ export default function SuperAdminPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      const result: CreatePropertyResponse = await response.json();
+      const result = await readJsonResponse<CreatePropertyResponse>(response);
       if (!response.ok || !result.success) {
         setError(result.message || "Property creation failed.");
         return;

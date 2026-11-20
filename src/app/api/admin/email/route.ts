@@ -86,32 +86,39 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ success: false, message: "Enter valid SMTP host, port, username, sender, recipient, and password details." }, { status: 400 });
   }
 
-  const existing = await query<PlatformEmailRow>(`SELECT password_encrypted FROM platform_email_config WHERE id = 1`);
-  if (!password && !existing.rows[0]?.password_encrypted) {
-    return NextResponse.json({ success: false, message: "Enter the SMTP mailbox password before saving." }, { status: 400 });
-  }
-
-  let encryptedPassword: string | null = null;
   try {
-    if (password) encryptedPassword = encryptSecret(password);
-  } catch (error) {
-    console.error("Unable to encrypt platform SMTP password.", error);
-    return NextResponse.json({ success: false, message: "The server credential encryption key must be configured before saving the SMTP password." }, { status: 503 });
-  }
+    const existing = await query<PlatformEmailRow>(`SELECT password_encrypted FROM platform_email_config WHERE id = 1`);
+    if (!password && !existing.rows[0]?.password_encrypted) {
+      return NextResponse.json({ success: false, message: "Enter the SMTP mailbox password before saving." }, { status: 400 });
+    }
 
-  await query(
-    `INSERT INTO platform_email_config
-       (id, smtp_host, smtp_port, smtp_username, from_address, notification_recipient, password_encrypted, updated_at)
-     VALUES (1, $1, $2, $3, $4, $5, $6, NOW())
-     ON CONFLICT (id) DO UPDATE SET
-       smtp_host = EXCLUDED.smtp_host,
-       smtp_port = EXCLUDED.smtp_port,
-       smtp_username = EXCLUDED.smtp_username,
-       from_address = EXCLUDED.from_address,
-       notification_recipient = EXCLUDED.notification_recipient,
-       password_encrypted = COALESCE(EXCLUDED.password_encrypted, platform_email_config.password_encrypted),
-       updated_at = NOW()`,
-    [host, port, username, fromAddress, recipient, encryptedPassword],
-  );
-  return NextResponse.json({ success: true, message: "Platform email settings saved securely.", has_password: true });
+    let encryptedPassword: string | null = null;
+    if (password) {
+      try {
+        encryptedPassword = encryptSecret(password);
+      } catch (error) {
+        console.error("Unable to encrypt platform SMTP password.", error);
+        return NextResponse.json({ success: false, message: "The server credential encryption key must be configured before saving the SMTP password." }, { status: 503 });
+      }
+    }
+
+    await query(
+      `INSERT INTO platform_email_config
+         (id, smtp_host, smtp_port, smtp_username, from_address, notification_recipient, password_encrypted, updated_at)
+       VALUES (1, $1, $2, $3, $4, $5, $6, NOW())
+       ON CONFLICT (id) DO UPDATE SET
+         smtp_host = EXCLUDED.smtp_host,
+         smtp_port = EXCLUDED.smtp_port,
+         smtp_username = EXCLUDED.smtp_username,
+         from_address = EXCLUDED.from_address,
+         notification_recipient = EXCLUDED.notification_recipient,
+         password_encrypted = COALESCE(EXCLUDED.password_encrypted, platform_email_config.password_encrypted),
+         updated_at = NOW()`,
+      [host, port, username, fromAddress, recipient, encryptedPassword],
+    );
+    return NextResponse.json({ success: true, message: "Platform email settings saved securely.", has_password: true });
+  } catch (error) {
+    console.error("Failed to save platform email settings.", error);
+    return NextResponse.json({ success: false, message: "Email settings could not be saved. Confirm the database migrations and server database connection." }, { status: 500 });
+  }
 }
