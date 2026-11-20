@@ -25,42 +25,61 @@ function validHost(value: string) {
     !value.toLowerCase().endsWith(".local");
 }
 
+async function authorizePlatformEmailAdmin() {
+  try {
+    const auth = await getAuthContext();
+    if (!auth) {
+      return { response: NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 }) };
+    }
+    if (!auth.bundle.user.is_super_admin) {
+      return { response: NextResponse.json({ success: false, message: "Only a platform super admin can manage platform email." }, { status: 403 }) };
+    }
+    return { auth };
+  } catch (error) {
+    console.error("Could not authorize platform email settings request.", error);
+    return { response: NextResponse.json({ success: false, message: "The server could not verify your admin session. Check the database connection and try again." }, { status: 503 }) };
+  }
+}
+
 export async function GET() {
   if (!databaseReady()) return NextResponse.json({ success: false, message: "DATABASE_URL is not configured." }, { status: 503 });
-  const auth = await getAuthContext();
-  if (!auth) return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
-  if (!auth.bundle.user.is_super_admin) return NextResponse.json({ success: false, message: "Only a platform super admin can manage platform email." }, { status: 403 });
+  const access = await authorizePlatformEmailAdmin();
+  if ("response" in access) return access.response;
 
-  const result = await query<PlatformEmailRow>(
-    `SELECT smtp_host, smtp_port, smtp_username, from_address, notification_recipient, password_encrypted
-     FROM platform_email_config WHERE id = 1`,
-  );
-  const config = result.rows[0];
-  return NextResponse.json({
-    success: true,
-    config: config ? {
-      smtp_host: config.smtp_host,
-      smtp_port: config.smtp_port,
-      smtp_username: config.smtp_username,
-      from_address: config.from_address,
-      notification_recipient: config.notification_recipient,
-      has_password: Boolean(config.password_encrypted),
-    } : {
-      smtp_host: "",
-      smtp_port: 465,
-      smtp_username: "",
-      from_address: "",
-      notification_recipient: "kamaua175@gmail.com",
-      has_password: false,
-    },
-  });
+  try {
+    const result = await query<PlatformEmailRow>(
+      `SELECT smtp_host, smtp_port, smtp_username, from_address, notification_recipient, password_encrypted
+       FROM platform_email_config WHERE id = 1`,
+    );
+    const config = result.rows[0];
+    return NextResponse.json({
+      success: true,
+      config: config ? {
+        smtp_host: config.smtp_host,
+        smtp_port: config.smtp_port,
+        smtp_username: config.smtp_username,
+        from_address: config.from_address,
+        notification_recipient: config.notification_recipient,
+        has_password: Boolean(config.password_encrypted),
+      } : {
+        smtp_host: "",
+        smtp_port: 465,
+        smtp_username: "",
+        from_address: "",
+        notification_recipient: "kamaua175@gmail.com",
+        has_password: false,
+      },
+    });
+  } catch (error) {
+    console.error("Failed to load platform email settings.", error);
+    return NextResponse.json({ success: false, message: "Email settings could not be loaded. Confirm migration 040 and the server database connection." }, { status: 503 });
+  }
 }
 
 export async function PATCH(request: Request) {
   if (!databaseReady()) return NextResponse.json({ success: false, message: "DATABASE_URL is not configured." }, { status: 503 });
-  const auth = await getAuthContext();
-  if (!auth) return NextResponse.json({ success: false, message: "Not signed in." }, { status: 401 });
-  if (!auth.bundle.user.is_super_admin) return NextResponse.json({ success: false, message: "Only a platform super admin can manage platform email." }, { status: 403 });
+  const access = await authorizePlatformEmailAdmin();
+  if ("response" in access) return access.response;
 
   let body: Record<string, unknown>;
   try {
